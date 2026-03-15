@@ -1,0 +1,49 @@
+# Community skills - install via each tool's skill installer
+# Source: ~/.agents/skills/ (Claude), marketplace (Codex)
+
+# Shared across Claude/Codex/OpenCode
+shared:
+  - agent-browser
+  - apify-trend-analysis
+  - axum
+  - brainstorming
+  - content-strategy
+  - copywriting
+  - find-skills
+  - nextjs-app-router-patterns
+  - openspec-archiving
+  - openspec-context-loading
+  - openspec-implementation
+  - openspec-proposal-creation
+  - platform-optimization
+  - playwright-skill
+  - remotion-best-practices
+  - rust-testing
+  - shadcn-ui
+  - short-form-video
+  - shorts-script-personality
+  - skill-creator
+  - tailwind-v4-shadcn
+  - tweet-writer
+  - vercel-react-best-practices
+  - vitest
+  - writing-x-posts
+  - x-publish
+
+# Codex marketplace only (have LICENSE.txt)
+codex_only:
+  - atlas
+  - gh-address-comments
+  - gh-fix-ci
+  - imagegen
+  - linear
+  - openai-docs
+  - pdf
+  - playwright
+  - screenshot
+  - security-best-practices
+  - security-ownership-map
+  - security-threat-model
+  - skill-creator
+  - sora
+  - spreadsheet

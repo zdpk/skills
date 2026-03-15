@@ -1,0 +1,8 @@
+# Claude Code plugins
+# Install: claude plugins install <name>
+claude:
+  - lua-lsp@claude-plugins-official
+  - clangd-lsp@claude-plugins-official
+  - code-simplifier@claude-plugins-official
+  - frontend-design@claude-plugins-official
+  # - claude-mem@thedotmack  # installed but not enabled

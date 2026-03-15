@@ -1,0 +1,9 @@
+version = 1
+id = "discover-video-models"
+name = "Discover Video Models"
+prompt = "Find newly emerging AI video generation models relevant to MapleStory style near-static 2D loop backgrounds; verify with official capability and pricing sources; update /Users/x/workspace/youtube/luna_studio/logs/video_model_eval/model_watchlist.md by adding or updating models without duplicates and setting status candidate or active; write today discovery notes to logs/video_model_eval/YYYY/MM/DD/discovery.md and update /Users/x/workspace/youtube/luna_studio/logs/video_model_eval/discovery_latest.md."
+status = "ACTIVE"
+rrule = "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU;BYHOUR=8;BYMINUTE=40"
+cwds = ["/Users/x/workspace/youtube/luna_studio"]
+created_at = 1771313128603
+updated_at = 1771313162374

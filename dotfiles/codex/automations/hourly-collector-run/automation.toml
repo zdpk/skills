@@ -1,0 +1,9 @@
+version = 1
+id = "hourly-collector-run"
+name = "Hourly Collector Run"
+prompt = "Run `collector run`, then `collector retry`, then `collector classify --only-missing` in /Users/x/github/apps/scan."
+status = "ACTIVE"
+rrule = "FREQ=HOURLY;INTERVAL=1;BYMINUTE=0"
+cwds = ["/Users/x/github/apps/scan"]
+created_at = 1770185662263
+updated_at = 1770185662263

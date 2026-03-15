@@ -1,0 +1,9 @@
+version = 1
+id = "evaluate-video-watchlist"
+name = "Evaluate Video Watchlist"
+prompt = "Read /Users/x/workspace/youtube/luna_studio/logs/video_model_eval/model_watchlist.md and compare all active and candidate models for the MapleStory in-game style near-static 2D loop use case, including pricing, performance, loop control, and final ranking; write the daily report to logs/video_model_eval/YYYY/MM/DD/report.md and update /Users/x/workspace/youtube/luna_studio/logs/video_model_eval/LATEST.md."
+status = "ACTIVE"
+rrule = "RRULE:FREQ=WEEKLY;BYHOUR=9;BYMINUTE=0;BYDAY=SU,MO,TU,WE,TH,FR,SA"
+cwds = ["/Users/x/workspace/youtube/luna_studio"]
+created_at = 1771313131669
+updated_at = 1771313157497

@@ -1,0 +1,10 @@
+version = 1
+id = "vibe-ux-radar"
+name = "Vibe UX Radar"
+prompt = "Search X and thread mirrors for vibe-coding posts focused on modern UI/UX. Collect high-signal posts mentioning v0, Lovable, Bolt, Replit Agent, Cursor, shadcn/ui, Tailwind, Radix, Motion, Supabase, and Vercel. Deliver a Korean report with: top links, tool-frequency table, repeatable design patterns, UX anti-patterns, and next 3 experiments for this workspace. Use [$x-research](/Users/x/.codex/skills/x-research/SKILL.md) first; if X API is unavailable, use Thread Reader mirrors and flag coverage gaps."
+status = "ACTIVE"
+rrule = "FREQ=WEEKLY;BYDAY=MO,WE,FR;BYHOUR=9;BYMINUTE=0"
+execution_environment = "worktree"
+cwds = ["/Users/x/github/zdpk/zdpk-lab"]
+created_at = 1772418616698
+updated_at = 1772418616698

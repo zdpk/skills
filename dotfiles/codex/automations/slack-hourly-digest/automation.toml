@@ -1,0 +1,9 @@
+version = 1
+id = "slack-hourly-digest"
+name = "Slack Hourly Digest"
+prompt = "Run the Slack worker once for this project by executing ./scripts/run_poll_once.sh ./.env ./logs, then run PYTHONPATH=src python3 -m slack_worker.cli run-status --env-file .env --max-age-minutes 120 and report run status, new/important counts, Discord send or pending-retry state, and any updated report file paths."
+status = "ACTIVE"
+rrule = "FREQ=HOURLY;INTERVAL=1"
+cwds = ["/Users/x/github/snar-com/slack-worker"]
+created_at = 1770636208237
+updated_at = 1770636208237
