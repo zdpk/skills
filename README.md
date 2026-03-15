@@ -1,85 +1,74 @@
-# personal/skills
+# skills
 
-Single source of truth for reusable Claude-style `SKILL.md` skills.
+Dotfiles and skills for AI coding tools: Claude Code, Codex, OpenCode, Gemini CLI, Claude Desktop, Antigravity.
 
-## Layout
-
-- `.claude/skills/<skill-name>/SKILL.md`: skill modules
-- `.claude/packs/**`: YAML manifests (ordered lists of skills)
-- `scripts/skillsctl`: install/sync skills into a target project and write local install state
-
-## Prereqs
-
-- `python3`
-- `yq` (mikefarah/yq)
-- `rsync` (for `--mode copy`)
-
-## Install/Sync Into A Project
-
-This installs skills into `<project>/.claude/skills/` and writes a local-only state file:
-
-- `<project>/.claude/skills/.skillsctl-state.yaml` (gitignored)
-
-Example:
+## Setup (new machine)
 
 ```bash
-./scripts/skillsctl sync \
-  --project /path/to/your/project \
-  --pack .claude/packs/install/default.yaml \
-  --mode copy
+git clone git@github.com:zdpk/skills.git ~/skills
+cd ~/skills
+make setup        # creates .env, runs full sync
+echo "source ~/skills/.env" >> ~/.zshrc
 ```
 
-Development mode (changes in this repo reflect immediately in the project):
+## Commands
+
+```
+make setup        Initial setup: create .env then full sync
+make sync         Full sync: MCP + dotfiles + skills + plugins
+make generate     Regenerate MCP configs from .env
+make link         Create dotfile symlinks
+make skills       Sync custom skills to Claude/Codex/OpenCode
+make plugins      Install Claude plugins from manifest
+make status       Show current state
+```
+
+## What gets synced
+
+| Category | Target | Method |
+|----------|--------|--------|
+| MCP servers | 6 tools | generated from `dotfiles/mcp-servers.json` |
+| Dotfiles | `~/.claude/` | symlinked (settings, hooks, statusline) |
+| Custom skills | Claude/Codex/OpenCode | symlinked from `dotfiles/skills/custom/` |
+| Codex extras | `~/.codex/` | symlinked (prompts, automations, rules) |
+| Plugins | Claude | installed from manifest |
+
+## Custom skills
+
+Organized by category under `dotfiles/skills/custom/`:
+
+| Category | Skills | Description |
+|----------|--------|-------------|
+| **maple** | idea, maple-background, maple-character, maple-cover, maple-style, suno-prompt | MapleStory BGM content pipeline |
+| **youtube** | yt-research, yt-script, yt-storyboard | YouTube production workflow |
+| **openspec** | openspec + 10 workflow skills | Spec-driven development |
+| **social** | x-research | X/Twitter research |
+| **project** | manual-authoring, manual-sync | Project-specific (SNPortal) |
+| **util** | flow-ingredients-sync, switch-google-account, re | General utilities |
+
+Skills are symlinked flat into each tool (`~/.claude/skills/<name>`, etc.) — categories are repo-only organization.
+
+## Community skills
+
+Listed in `dotfiles/skills/manifests/community-skills.yaml`. Not stored in this repo — install via each tool's skill installer.
+
+## MCP secret handling
+
+| Tool | Secrets in config? | Method |
+|------|:---:|--------|
+| Claude Code | No | `${VAR}` native expansion |
+| Gemini CLI | No | `$VAR` native expansion |
+| Claude Desktop | No | `mcp-wrapper.sh` runtime injection |
+| Codex | No | `mcp-wrapper.sh` runtime injection |
+| OpenCode | No | `mcp-wrapper.sh` runtime injection |
+| Antigravity | No | `mcp-wrapper.sh` runtime injection |
+
+Exception: HTTP MCP servers (e.g. stitch) need literal secrets in Desktop/Codex/Antigravity/OpenCode configs.
+
+## Project-level skills (skillsctl)
+
+For installing skills into specific projects (not user-global):
 
 ```bash
-./scripts/skillsctl sync --project /path/to/your/project --mode symlink
+./scripts/skillsctl sync --project /path/to/project --pack .claude/packs/install/default.yaml
 ```
-
-Use a project-owned pack (recommended for reproducible installs). Store the pack in the project, commit it, and point `skillsctl` at it:
-
-```bash
-./scripts/skillsctl sync \
-  --project /path/to/your/project \
-  --pack /path/to/your/project/.claude/packs/install/default.yaml
-```
-
-This also copies `.claude/packs/` into the target project by default (skipping files that already exist). Disable with:
-
-```bash
-./scripts/skillsctl sync --project /path/to/your/project --no-install-packs
-```
-
-By default, `skillsctl` also ensures `.gitignore` contains:
-
-```
-.claude/skills/.skillsctl-state.yaml
-```
-
-To replace an existing installed skill directory/symlink, pass `--force`.
-
-## Inspect Local Install State
-
-```bash
-./scripts/skillsctl status --project /path/to/your/project
-```
-
-## Packs
-
-Packs are YAML manifests that list skills by name, in the order they should be installed or executed.
-
-- Install pack (what to install): `.claude/packs/install/default.yaml`
-- Verify pack (what to run): `.claude/packs/verify/default.yaml`
-
-Pack schema v1:
-
-```yaml
-schema_version: 1
-id: install-default
-skills:
-  - manage-skills
-  - verify-implementation
-```
-
-## Versioning / Deployment
-
-This repo is the source of truth. For deployment, pin the repo to a git tag or commit SHA (e.g. `v0.1.0`) and run `scripts/skillsctl sync` from that checkout.

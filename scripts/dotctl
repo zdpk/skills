@@ -374,15 +374,35 @@ def cmd_link(_args) -> int:
     return 0
 
 
+def _find_custom_skills() -> list[Path]:
+    """Find all skill dirs under custom/, walking one level of categories.
+
+    Structure: custom/<category>/<skill>/SKILL.md
+    A directory is a skill if it contains SKILL.md.
+    A directory without SKILL.md is a category containing skills.
+    """
+    skills: list[Path] = []
+    for entry in sorted(CUSTOM_SKILLS.iterdir()):
+        if not entry.is_dir() or entry.name.startswith("."):
+            continue
+        if (entry / "SKILL.md").exists():
+            # Flat skill (no category)
+            skills.append(entry)
+        else:
+            # Category dir — collect child skills
+            for child in sorted(entry.iterdir()):
+                if child.is_dir() and not child.name.startswith("."):
+                    skills.append(child)
+    return skills
+
+
 def cmd_skills(_args) -> int:
     """Sync custom skills to Claude/Codex/OpenCode + Codex extras."""
     if not CUSTOM_SKILLS.exists():
         print("error: dotfiles/skills/custom/ not found", file=sys.stderr)
         return 1
 
-    custom_dirs = sorted(
-        d for d in CUSTOM_SKILLS.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    custom_dirs = _find_custom_skills()
 
     for tool, skill_dir in SKILL_DIRS.items():
         print(f"\n  === {tool} ({skill_dir}) ===")
@@ -551,15 +571,15 @@ def cmd_status(_args) -> int:
     print(f"  {'ok' if WRAPPER.exists() else 'MISS':6s} {WRAPPER}")
 
     if CUSTOM_SKILLS.exists():
-        custom_names = sorted(d.name for d in CUSTOM_SKILLS.iterdir() if d.is_dir())
-        print(f"\n=== Custom skills ({len(custom_names)}) ===")
+        custom_skills = _find_custom_skills()
+        print(f"\n=== Custom skills ({len(custom_skills)}) ===")
         for tool, skill_dir in SKILL_DIRS.items():
             linked = sum(
-                1 for n in custom_names
-                if (skill_dir / n).is_symlink()
-                and (skill_dir / n).resolve() == (CUSTOM_SKILLS / n).resolve()
+                1 for s in custom_skills
+                if (skill_dir / s.name).is_symlink()
+                and (skill_dir / s.name).resolve() == s.resolve()
             )
-            print(f"  {tool:12s} {linked}/{len(custom_names)} linked")
+            print(f"  {tool:12s} {linked}/{len(custom_skills)} linked")
 
     return 0
 
