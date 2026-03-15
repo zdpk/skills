@@ -1,6 +1,6 @@
 ---
-name: idea
-description: Manage BGM remake ideas through the production pipeline. Create, list, update ideas, add collab refs, generate Suno/cover prompts. Triggers on "idea", "아이디어", "idea create", "idea list", "idea show", "아이디어 생성", "아이디어 목록".
+name: maplestory-idea
+description: MapleStory BGM remake idea manager. Manage BGM remake ideas through the production pipeline. Create, list, update ideas, add collab refs, generate Suno/cover prompts. Triggers on "maplestory-idea", "idea", "아이디어", "메이플 아이디어", "idea create", "idea list", "idea show", "maplestory-idea create", "maplestory-idea list", "maplestory-idea show", "아이디어 생성", "아이디어 목록".
 ---
 
 # Idea Manager — BGM Remake Ideation Pipeline
