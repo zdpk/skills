@@ -1,6 +1,14 @@
 DOTCTL := python3 scripts/dotctl
 
-.PHONY: sync generate link skills plugins status
+.PHONY: setup sync generate link skills plugins status
+
+setup:       ## Initial setup: create .env then full sync
+	@test -f .env || (cp dotfiles/.env.example .env && echo "Created .env — fill in values then re-run make setup" && exit 1)
+	@grep -q '=$$' .env && echo "Error: .env has empty values — fill them in first" && exit 1 || true
+	$(DOTCTL) sync
+	@echo ""
+	@echo "Add to your shell profile:"
+	@echo "  echo 'source $(CURDIR)/.env' >> ~/.zshrc"
 
 sync:        ## Full sync: MCP + dotfiles + skills + plugins
 	$(DOTCTL) sync
