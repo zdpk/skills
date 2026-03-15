@@ -1,0 +1,600 @@
+#!/usr/bin/env python3
+"""dotctl - Dotfiles manager for AI coding tools.
+
+Manages MCP server configs across 6 tools from a single source of truth
+(dotfiles/mcp-servers.json) and dotfile symlinks.
+
+Secrets live in .env (gitignored). Create it manually:
+    cp dotfiles/.env.example .env   # then fill in values
+
+Tools and their secret handling:
+  - Claude Code:     ${VAR}     native expansion (no secrets in file)
+  - Gemini CLI:      $VAR       native expansion (no secrets in file)
+  - Claude Desktop:  wrapper    mcp-wrapper.sh   (no secrets in file)
+  - Codex:           wrapper    mcp-wrapper.sh   (no secrets in file)
+  - OpenCode:        wrapper    mcp-wrapper.sh   (no secrets in file)
+  - Antigravity:     wrapper    mcp-wrapper.sh   (no secrets in file)
+
+HTTP servers with secret headers fall back to literal values (no wrapper possible).
+
+Usage:
+    dotctl sync       Generate configs + create symlinks
+    dotctl generate   Regenerate MCP configs from .env
+    dotctl link       Create dotfile symlinks
+    dotctl status     Show current state
+"""
+
+import argparse
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DOTFILES = REPO_ROOT / "dotfiles"
+ENV_FILE = REPO_ROOT / ".env"
+WRAPPER = DOTFILES / "mcp-wrapper.sh"
+
+IS_MAC = platform.system() == "Darwin"
+
+TARGETS: dict[str, Path] = {
+    "claude-code": Path.home() / ".claude" / ".mcp.json",
+    "claude-desktop": (
+        Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+        if IS_MAC
+        else Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
+    ),
+    "codex": Path.home() / ".codex" / "config.toml",
+    "opencode": Path.home() / ".config" / "opencode" / "opencode.json",
+    "gemini": Path.home() / ".gemini" / "settings.json",
+    "antigravity": Path.home() / ".gemini" / "antigravity" / "mcp_config.json",
+}
+
+MCP_KEYS: dict[str, str] = {
+    "claude-code": "mcpServers",
+    "claude-desktop": "mcpServers",
+    "opencode": "mcp",
+    "gemini": "mcpServers",
+    "antigravity": "mcpServers",
+}
+
+SYMLINKS: dict[str, str] = {
+    "dotfiles/claude/CLAUDE.md": "~/.claude/CLAUDE.md",
+    "dotfiles/claude/settings.json": "~/.claude/settings.json",
+    "dotfiles/claude/statusline.sh": "~/.claude/statusline.sh",
+    "dotfiles/hooks/session-start.sh": "~/.claude/hooks/session-start.sh",
+    "dotfiles/hooks/notify-complete.sh": "~/.claude/hooks/notify-complete.sh",
+    "dotfiles/hooks/format.sh": "~/.claude/hooks/format.sh",
+}
+
+# Skill directories per tool
+SKILL_DIRS: dict[str, Path] = {
+    "claude": Path.home() / ".claude" / "skills",
+    "codex": Path.home() / ".codex" / "skills",
+    "opencode": Path.home() / ".config" / "opencode" / "skills",
+}
+
+CUSTOM_SKILLS = DOTFILES / "skills" / "custom"
+MANIFESTS = DOTFILES / "skills" / "manifests"
+CODEX_DOTFILES = DOTFILES / "codex"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+VAR_RE = re.compile(r"\$([A-Z_][A-Z0-9_]*)")
+
+
+def load_env(path: Path) -> dict[str, str]:
+    env: dict[str, str] = {}
+    if not path.exists():
+        return env
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        env[key.strip()] = value.strip().strip("'\"")
+    return env
+
+
+def load_mcp_servers() -> dict:
+    return json.loads((DOTFILES / "mcp-servers.json").read_text())["servers"]
+
+
+def _has_var_refs(obj) -> bool:
+    if isinstance(obj, str):
+        return bool(VAR_RE.search(obj))
+    if isinstance(obj, list):
+        return any(_has_var_refs(item) for item in obj)
+    if isinstance(obj, dict):
+        return any(_has_var_refs(v) for v in obj.values())
+    return False
+
+
+def _resolve_str(value: str, env: dict[str, str], mode: str) -> str:
+    def _repl(m: re.Match) -> str:
+        var = m.group(1)
+        if mode == "literal":
+            return env.get(var, "")
+        if mode == "claude-code":
+            return f"${{{var}}}"
+        if mode == "gemini":
+            return f"${var}"
+        if mode == "opencode":
+            return "{" + f"env:{var}" + "}"
+        return m.group(0)
+
+    return VAR_RE.sub(_repl, value)
+
+
+def _resolve_any(obj, env: dict[str, str], mode: str):
+    if isinstance(obj, str):
+        return _resolve_str(obj, env, mode)
+    if isinstance(obj, list):
+        return [_resolve_any(item, env, mode) for item in obj]
+    if isinstance(obj, dict):
+        return {k: _resolve_any(v, env, mode) for k, v in obj.items()}
+    return obj
+
+
+# ---------------------------------------------------------------------------
+# Server builders
+# ---------------------------------------------------------------------------
+
+
+def _build_native_server(server: dict, env: dict, mode: str) -> dict:
+    resolved = _resolve_any(server, env, mode)
+    out: dict = {}
+    if resolved.get("type") == "http":
+        out["type"] = "http"
+        out["url"] = resolved["url"]
+        if "headers" in resolved:
+            out["headers"] = resolved["headers"]
+    else:
+        out["command"] = resolved["command"]
+        if "args" in resolved:
+            out["args"] = resolved["args"]
+    if "env" in resolved:
+        out["env"] = resolved["env"]
+    return out
+
+
+def _build_wrapper_server(server: dict) -> dict:
+    wrapper_args: list[str] = []
+    if "env" in server:
+        for key, val in server["env"].items():
+            wrapper_args.extend(["--env", f"{key}={val}"])
+    wrapper_args.append("--")
+    wrapper_args.append(server["command"])
+    if "args" in server:
+        wrapper_args.extend(server["args"])
+    return {"command": str(WRAPPER), "args": wrapper_args}
+
+
+def _build_server_for_tool(server: dict, env: dict, tool: str) -> dict:
+    is_http = server.get("type") == "http"
+    has_secrets = _has_var_refs(server)
+
+    if tool in ("claude-code", "gemini"):
+        return _build_native_server(server, env, tool)
+    if has_secrets and not is_http:
+        return _build_wrapper_server(server)
+    if has_secrets and is_http:
+        return _build_native_server(server, env, "literal")
+    return _build_native_server(server, env, "literal")
+
+
+# ---------------------------------------------------------------------------
+# Format-specific generators
+# ---------------------------------------------------------------------------
+
+
+def generate_json_mcp(servers: dict, env: dict, tool: str) -> dict:
+    return {
+        name: _build_server_for_tool(srv, env, tool)
+        for name, srv in servers.items()
+    }
+
+
+def generate_opencode_mcp(servers: dict, env: dict) -> dict:
+    result = {}
+    for name, server in servers.items():
+        built = _build_server_for_tool(server, env, "opencode")
+        out: dict = {}
+        if built.get("type") == "http":
+            out["type"] = "remote"
+            out["url"] = built["url"]
+            if "headers" in built:
+                out["headers"] = built["headers"]
+        else:
+            out["type"] = "local"
+            out["command"] = [built["command"]] + built.get("args", [])
+        if "environment" in built:
+            out["environment"] = built["environment"]
+        elif "env" in built:
+            out["environment"] = built["env"]
+        result[name] = out
+    return result
+
+
+def _toml_str(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def generate_codex_toml(servers: dict, env: dict) -> str:
+    lines: list[str] = []
+    for name, server in servers.items():
+        built = _build_server_for_tool(server, env, "codex")
+        if built.get("type") == "http":
+            lines.append(f"[mcp_servers.{name}]")
+            lines.append(f'url = "{_toml_str(built["url"])}"')
+            if "headers" in built:
+                pairs = ", ".join(
+                    f'"{_toml_str(k)}" = "{_toml_str(v)}"'
+                    for k, v in built["headers"].items()
+                )
+                lines.append(f"http_headers = {{ {pairs} }}")
+        else:
+            lines.append(f"[mcp_servers.{name}]")
+            lines.append(f'command = "{_toml_str(built["command"])}"')
+            if built.get("args"):
+                args_str = ", ".join(f'"{_toml_str(a)}"' for a in built["args"])
+                lines.append(f"args = [{args_str}]")
+        if "env" in built:
+            lines.append("")
+            lines.append(f"[mcp_servers.{name}.env]")
+            for k, v in built["env"].items():
+                lines.append(f'{k} = "{_toml_str(v)}"')
+        lines.append("")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# File writers (read-merge-write to preserve non-MCP sections)
+# ---------------------------------------------------------------------------
+
+
+def _write_json_merged(path: Path, mcp_key: str, mcp_data: dict) -> None:
+    existing: dict = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    existing[mcp_key] = mcp_data
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, indent=2, ensure_ascii=False) + "\n")
+    print(f"  wrote {path}")
+
+
+def _write_codex_merged(path: Path, mcp_toml: str) -> None:
+    kept: list[str] = []
+    if path.exists():
+        in_mcp = False
+        for line in path.read_text().splitlines():
+            if re.match(r"\[mcp_servers\.", line):
+                in_mcp = True
+                continue
+            if in_mcp and re.match(r"\[", line):
+                in_mcp = False
+            if in_mcp:
+                continue
+            kept.append(line)
+    while kept and not kept[-1].strip():
+        kept.pop()
+    if kept:
+        kept.append("")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(kept) + "\n" + mcp_toml)
+    print(f"  wrote {path}")
+
+
+# ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+
+def cmd_generate(_args) -> int:
+    """Generate MCP configs for all 6 tools."""
+    env = load_env(ENV_FILE)
+    if not env:
+        print(
+            "warning: .env not found. Create it first:\n"
+            "  cp dotfiles/.env.example .env\n",
+            file=sys.stderr,
+        )
+    servers = load_mcp_servers()
+    print("Generating MCP configs...")
+
+    mcp = generate_json_mcp(servers, env, "claude-code")
+    _write_json_merged(TARGETS["claude-code"], MCP_KEYS["claude-code"], mcp)
+
+    mcp = generate_json_mcp(servers, env, "claude-desktop")
+    _write_json_merged(TARGETS["claude-desktop"], MCP_KEYS["claude-desktop"], mcp)
+
+    toml = generate_codex_toml(servers, env)
+    _write_codex_merged(TARGETS["codex"], toml)
+
+    mcp = generate_opencode_mcp(servers, env)
+    _write_json_merged(TARGETS["opencode"], MCP_KEYS["opencode"], mcp)
+
+    mcp = generate_json_mcp(servers, env, "gemini")
+    _write_json_merged(TARGETS["gemini"], MCP_KEYS["gemini"], mcp)
+
+    mcp = generate_json_mcp(servers, env, "antigravity")
+    _write_json_merged(TARGETS["antigravity"], MCP_KEYS["antigravity"], mcp)
+
+    http_with_secrets = [
+        name for name, srv in servers.items()
+        if srv.get("type") == "http" and _has_var_refs(srv)
+    ]
+    if http_with_secrets:
+        print(
+            f"\n  note: HTTP servers {http_with_secrets} need literal secrets\n"
+            f"  in Desktop/Codex/Antigravity/OpenCode (wrapper can't intercept HTTP headers)",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def cmd_link(_args) -> int:
+    """Create dotfile symlinks."""
+    print("Creating symlinks...")
+    for src_rel, dst_tilde in SYMLINKS.items():
+        src = REPO_ROOT / src_rel
+        dst = Path(dst_tilde).expanduser()
+        if not src.exists():
+            print(f"  SKIP {src_rel} (source not found)", file=sys.stderr)
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if dst.is_symlink() or dst.exists():
+            if dst.is_symlink() and dst.resolve() == src.resolve():
+                print(f"  ok   {dst_tilde}")
+                continue
+            bak = dst.with_suffix(dst.suffix + ".bak")
+            dst.rename(bak)
+            print(f"  bak  {dst_tilde} -> {bak.name}")
+        dst.symlink_to(src)
+        print(f"  link {dst_tilde}")
+
+    for f in [WRAPPER] + list((REPO_ROOT / "dotfiles" / "hooks").glob("*.sh")):
+        if f.is_file():
+            f.chmod(f.stat().st_mode | 0o755)
+    return 0
+
+
+def cmd_skills(_args) -> int:
+    """Sync custom skills to Claude/Codex/OpenCode + Codex extras."""
+    if not CUSTOM_SKILLS.exists():
+        print("error: dotfiles/skills/custom/ not found", file=sys.stderr)
+        return 1
+
+    custom_dirs = sorted(
+        d for d in CUSTOM_SKILLS.iterdir() if d.is_dir() and not d.name.startswith(".")
+    )
+
+    for tool, skill_dir in SKILL_DIRS.items():
+        print(f"\n  === {tool} ({skill_dir}) ===")
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        installed = 0
+        for src in custom_dirs:
+            dst = skill_dir / src.name
+            if dst.is_symlink() and dst.resolve() == src.resolve():
+                continue  # already linked
+            if dst.is_symlink() or dst.exists():
+                # Remove old version (file/dir/broken symlink)
+                if dst.is_dir() and not dst.is_symlink():
+                    shutil.rmtree(dst)
+                else:
+                    dst.unlink()
+            dst.symlink_to(src)
+            installed += 1
+        total = len(custom_dirs)
+        print(f"  {installed} new, {total - installed} ok ({total} custom skills)")
+
+    # Codex-specific: prompts, automations, rules
+    codex_extras = {"prompts": Path.home() / ".codex" / "prompts",
+                    "automations": Path.home() / ".codex" / "automations",
+                    "rules": Path.home() / ".codex" / "rules"}
+    for name, dst_dir in codex_extras.items():
+        src_dir = CODEX_DOTFILES / name
+        if not src_dir.exists():
+            continue
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for src_entry in src_dir.iterdir():
+            if src_entry.name.startswith("."):
+                continue
+            dst_entry = dst_dir / src_entry.name
+            if dst_entry.is_symlink() and dst_entry.resolve() == src_entry.resolve():
+                continue
+            if dst_entry.is_symlink() or (dst_entry.exists() and not dst_entry.is_dir()):
+                dst_entry.unlink()
+            elif dst_entry.is_dir() and not dst_entry.is_symlink():
+                shutil.rmtree(dst_entry)
+            dst_entry.symlink_to(src_entry)
+    print(f"\n  === codex extras (prompts/automations/rules) === linked")
+    return 0
+
+
+def _parse_yaml_list(path: Path) -> list[str]:
+    """Parse simple YAML list items (  - name) from a file."""
+    items: list[str] = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if line.startswith("- ") and not line.startswith("# "):
+            items.append(line[2:].strip())
+    return items
+
+
+def cmd_plugins(_args) -> int:
+    """Install plugins for all tools from manifests."""
+    plugins_dir = MANIFESTS / "plugins"
+    if not plugins_dir.exists():
+        print("error: manifests/plugins/ not found", file=sys.stderr)
+        return 1
+
+    # Claude
+    claude_manifest = plugins_dir / "claude.yaml"
+    if claude_manifest.exists() and shutil.which("claude"):
+        plugins = _parse_yaml_list(claude_manifest)
+        if plugins:
+            print("  === claude ===")
+            for plugin in plugins:
+                print(f"  installing {plugin}...")
+                subprocess.run(
+                    ["claude", "plugins", "install", plugin],
+                    capture_output=True,
+                )
+            print(f"  {len(plugins)} plugins processed")
+    elif claude_manifest.exists():
+        print("  claude CLI not found — skipping plugins", file=sys.stderr)
+
+    # Codex (placeholder for future)
+    codex_manifest = plugins_dir / "codex.yaml"
+    if codex_manifest.exists():
+        plugins = _parse_yaml_list(codex_manifest)
+        if plugins:
+            print("  === codex ===")
+            print(f"  {len(plugins)} plugins listed (install manually)")
+
+    # OpenCode (placeholder for future)
+    opencode_manifest = plugins_dir / "opencode.yaml"
+    if opencode_manifest.exists():
+        plugins = _parse_yaml_list(opencode_manifest)
+        if plugins:
+            print("  === opencode ===")
+            print(f"  {len(plugins)} plugins listed (install manually)")
+
+    return 0
+
+
+def cmd_sync(_args) -> int:
+    """Generate configs + create symlinks."""
+    env = load_env(ENV_FILE)
+    if not env:
+        print(
+            "No .env found. Create it first:\n"
+            "  cp dotfiles/.env.example .env\n"
+            "  # fill in values, then re-run dotctl sync\n",
+            file=sys.stderr,
+        )
+        return 1
+
+    print("=== 1. MCP configs ===")
+    ret = cmd_generate(_args)
+    if ret != 0:
+        return ret
+
+    print("\n=== 2. Dotfile symlinks ===")
+    ret = cmd_link(_args)
+    if ret != 0:
+        return ret
+
+    print("\n=== 3. Custom skills ===")
+    ret = cmd_skills(_args)
+    if ret != 0:
+        return ret
+
+    print("\n=== 4. Plugins ===")
+    cmd_plugins(_args)
+
+    print("\n=== Done ===")
+    shell_rc = "~/.zshrc" if os.environ.get("SHELL", "").endswith("zsh") else "~/.bashrc"
+    print(f"Source .env for Claude Code/Gemini native expansion:")
+    print(f'  echo "source {ENV_FILE}" >> {shell_rc}')
+    return 0
+
+
+def cmd_status(_args) -> int:
+    print("=== .env ===")
+    if ENV_FILE.exists():
+        env = load_env(ENV_FILE)
+        for k, v in env.items():
+            masked = v[:4] + "..." if len(v) > 4 else "***"
+            print(f"  {k} = {masked}")
+    else:
+        print("  (not found — cp dotfiles/.env.example .env)")
+
+    print("\n=== Symlinks ===")
+    for src_rel, dst_tilde in SYMLINKS.items():
+        dst = Path(dst_tilde).expanduser()
+        expected = (REPO_ROOT / src_rel).resolve()
+        if dst.is_symlink():
+            actual = dst.resolve()
+            mark = "ok" if actual == expected else f"WRONG -> {actual}"
+            print(f"  {mark:6s} {dst_tilde}")
+        elif dst.exists():
+            print(f"  FILE   {dst_tilde} (not a symlink)")
+        else:
+            print(f"  MISS   {dst_tilde}")
+
+    print("\n=== MCP configs ===")
+    for tool, path in TARGETS.items():
+        if path.exists():
+            size = path.stat().st_size
+            print(f"  ok   {tool:20s} {path} ({size}B)")
+        else:
+            print(f"  MISS {tool:20s} {path}")
+
+    print(f"\n=== Wrapper ===")
+    print(f"  {'ok' if WRAPPER.exists() else 'MISS':6s} {WRAPPER}")
+
+    if CUSTOM_SKILLS.exists():
+        custom_names = sorted(d.name for d in CUSTOM_SKILLS.iterdir() if d.is_dir())
+        print(f"\n=== Custom skills ({len(custom_names)}) ===")
+        for tool, skill_dir in SKILL_DIRS.items():
+            linked = sum(
+                1 for n in custom_names
+                if (skill_dir / n).is_symlink()
+                and (skill_dir / n).resolve() == (CUSTOM_SKILLS / n).resolve()
+            )
+            print(f"  {tool:12s} {linked}/{len(custom_names)} linked")
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+COMMANDS = {
+    "sync": (cmd_sync, "Full sync: MCP + dotfiles + skills + plugins"),
+    "generate": (cmd_generate, "Regenerate MCP configs from .env"),
+    "link": (cmd_link, "Create dotfile symlinks"),
+    "skills": (cmd_skills, "Sync custom skills to Claude/Codex/OpenCode"),
+    "plugins": (cmd_plugins, "Install Claude plugins from manifest"),
+    "status": (cmd_status, "Show current state"),
+}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="dotctl",
+        description="Dotfiles manager for AI coding tools",
+    )
+    sub = parser.add_subparsers(dest="cmd")
+    for name, (_, help_text) in COMMANDS.items():
+        sub.add_parser(name, help=help_text)
+
+    args = parser.parse_args()
+    if not args.cmd:
+        parser.print_help()
+        return 0
+
+    handler, _ = COMMANDS[args.cmd]
+    return handler(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

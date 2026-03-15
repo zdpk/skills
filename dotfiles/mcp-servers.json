@@ -1,0 +1,50 @@
+{
+  "$schema_version": 1,
+  "servers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    },
+    "text-memory": {
+      "command": "npx",
+      "args": ["-y", "text-memory"]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_TOKEN"
+      }
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@smithery/cli@latest", "run", "@wonderwhy-er/desktop-commander", "--key", "$SMITHERY_KEY"]
+    },
+    "youtube-download": {
+      "command": "npx",
+      "args": ["-y", "@smithery/cli@latest", "run", "@daniellopez-2/youtube-download", "--key", "$SMITHERY_KEY", "--profile", "$SMITHERY_YT_PROFILE"]
+    },
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase@latest", "--read-only", "--project-ref=$SUPABASE_PROJECT_REF"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "$SUPABASE_ACCESS_TOKEN"
+      }
+    },
+    "linear-server": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.linear.app/mcp"]
+    },
+    "tosspayments-integration-guide": {
+      "command": "npx",
+      "args": ["-y", "@tosspayments/integration-guide-mcp@latest"]
+    },
+    "stitch": {
+      "type": "http",
+      "url": "https://stitch.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "$STITCH_API_KEY"
+      }
+    }
+  }
+}
