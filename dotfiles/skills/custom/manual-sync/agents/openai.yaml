@@ -1,0 +1,7 @@
+interface:
+  display_name: "Manual Sync"
+  short_description: "Sync SNPortal manual and API counters"
+  default_prompt: "Use $manual-sync to update the SNPortal manual and API reference before I commit."
+
+policy:
+  allow_implicit_invocation: true

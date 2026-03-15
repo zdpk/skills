@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manual Authoring"
+  short_description: "Write SNPortal manual text from code diffs"
+  default_prompt: "Use $manual-authoring to update the SNPortal manual prose from the latest manual-authoring range after running $manual-sync if needed."
