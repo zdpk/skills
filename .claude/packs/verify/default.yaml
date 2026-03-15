@@ -1,0 +1,7 @@
+schema_version: 1
+id: verify-default
+description: Verification steps for this skills repository and installed skills.
+skills:
+  - verify-skill-format
+  - verify-skillpack
+

@@ -1,0 +1,6 @@
+schema_version: 1
+id: install-gemini-watermark-removal
+description: Install the gemini-watermark-removal skill (Gemini image watermark removal CLI workflow).
+skills:
+  - gemini-watermark-removal
+
