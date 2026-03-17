@@ -6,7 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
+import subprocess
 import sys
+from collections import OrderedDict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -18,6 +22,23 @@ REGISTRY_PATH = REPO_ROOT / "skills" / "registry.yaml"
 
 VALID_SOURCES = {"custom", "downloaded", "builtin", "codex-exclusive"}
 VALID_AGENTS = {"claude", "codex", "opencode", "universal"}
+
+FIELD_ORDER = [
+    "name", "source", "agent", "tags", "path", "description",
+    "install_source", "import_origin", "created_at", "updated_at",
+    "disabled",
+]
+
+SKILL_MD_TEMPLATE = """---
+description: "{description}"
+---
+
+# {name}
+
+TODO: Write skill instructions here.
+"""
+
+COPY_IGNORE = {".git", "__pycache__", "node_modules", ".DS_Store", ".venv", "venv"}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -32,45 +53,9 @@ def expand_path(p: str | None) -> Path | None:
     return path.resolve()
 
 
-def load_registry() -> dict:
-    """Load and return the registry YAML."""
-    if not REGISTRY_PATH.exists():
-        print(f"Error: registry not found at {REGISTRY_PATH}", file=sys.stderr)
-        sys.exit(1)
-    with open(REGISTRY_PATH) as f:
-        return yaml.safe_load(f)
-
-
-def save_registry(data: dict) -> None:
-    """Write registry back to YAML."""
-    with open(REGISTRY_PATH, "w") as f:
-        yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-
-
-def resolve_profile_tags(registry: dict, profile_name: str) -> list[str]:
-    """Resolve a profile name to a list of tags."""
-    profiles = registry.get("profiles", {})
-    if profile_name not in profiles:
-        print(f"Error: unknown profile '{profile_name}'", file=sys.stderr)
-        print(f"Available profiles: {', '.join(profiles.keys())}", file=sys.stderr)
-        sys.exit(1)
-    return profiles[profile_name].get("tags", [])
-
-
-def skill_matches_tags(skill: dict, tags: list[str]) -> bool:
-    """Check if a skill matches any of the given tags."""
-    if "*" in tags:
-        return True
-    skill_tags = set(skill.get("tags", []))
-    return bool(skill_tags & set(tags))
-
-
-def skill_matches_agent(skill: dict, agent: str | None) -> bool:
-    """Check if a skill is compatible with the given agent."""
-    if agent is None:
-        return True
-    skill_agent = skill.get("agent", "universal")
-    return skill_agent == "universal" or skill_agent == agent
+def now_iso() -> str:
+    """Return current UTC time in ISO 8601."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def format_table(rows: list[list[str]], headers: list[str]) -> str:
@@ -86,13 +71,246 @@ def format_table(rows: list[list[str]], headers: list[str]) -> str:
     return "\n".join(lines)
 
 
-# ── Commands ──────────────────────────────────────────────────────────
+def ordered_skill(entry: dict) -> OrderedDict:
+    """Return entry with fields in canonical order, empty values omitted."""
+    return OrderedDict(
+        (k, entry[k]) for k in FIELD_ORDER
+        if k in entry and entry[k] is not None and entry[k] != "" and entry[k] != []
+    )
+
+
+class FlowList(list):
+    """List subclass that signals YAML flow-style output [a, b, c]."""
+    pass
+
+
+class FlowListDumper(yaml.Dumper):
+    """Custom YAML dumper that renders FlowList as flow-style."""
+    pass
+
+
+def _flow_list_representer(dumper, data):
+    return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+
+
+FlowListDumper.add_representer(FlowList, _flow_list_representer)
+
+
+def levenshtein(a: str, b: str) -> int:
+    """Simple Levenshtein distance."""
+    if len(a) < len(b):
+        return levenshtein(b, a)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (0 if ca == cb else 1)))
+        prev = curr
+    return prev[-1]
+
+
+# ── RegistryWriter ────────────────────────────────────────────────────
+class RegistryWriter:
+    """Atomic read/write for registry.yaml with CRUD operations."""
+
+    def __init__(self, path: Path = REGISTRY_PATH):
+        self.path = path
+        self._data: dict | None = None
+
+    def load(self) -> dict:
+        if not self.path.exists():
+            print(f"Error: registry not found at {self.path}", file=sys.stderr)
+            sys.exit(1)
+        with open(self.path) as f:
+            self._data = yaml.safe_load(f)
+        return self._data
+
+    def save(self, data: dict | None = None) -> None:
+        if data is not None:
+            self._data = data
+        if self._data is None:
+            raise RuntimeError("No data to save")
+
+        # Sort skills by name for consistent diffs
+        skills = self._data.get("skills", [])
+        skills = sorted(skills, key=lambda s: s.get("name", "").lower())
+
+        # Convert to ordered dicts with flow-style lists for tags/agent
+        self._data["skills"] = [dict(ordered_skill(s)) for s in skills]
+
+        # Convert profiles tags and skill tags to FlowList for compact output
+        for profile in self._data.get("profiles", {}).values():
+            if "tags" in profile:
+                profile["tags"] = FlowList(profile["tags"])
+        for s in self._data["skills"]:
+            if "tags" in s:
+                s["tags"] = FlowList(s["tags"])
+
+        # Build output with section comments
+        self._write_with_comments()
+
+    def _write_with_comments(self) -> None:
+        """Write registry with section comments grouped by source."""
+        lines = []
+
+        # Header
+        lines.append(f"version: {self._data.get('version', 1)}")
+        lines.append("")
+
+        # Profiles
+        lines.append("# ── Profile Definitions ───────────────────────────────────────────────")
+        profiles = self._data.get("profiles", {})
+        profiles_data = {"profiles": profiles}
+        profiles_yaml = yaml.dump(profiles_data, Dumper=FlowListDumper, default_flow_style=False, allow_unicode=True, sort_keys=False)
+        lines.append(profiles_yaml.rstrip())
+        lines.append("")
+
+        # Skills with section comments
+        lines.append("# ── Skill Registry ────────────────────────────────────────────────────")
+        lines.append("# source:  custom | downloaded | builtin | codex-exclusive")
+        lines.append("# agent:   claude | codex | opencode | universal")
+        lines.append("skills:")
+
+        # Group skills by source
+        source_order = ["custom", "downloaded", "codex-exclusive", "builtin"]
+        skills_by_source: dict[str, list[dict]] = {}
+        for s in self._data.get("skills", []):
+            src = s.get("source", "custom")
+            skills_by_source.setdefault(src, []).append(s)
+
+        source_labels = {
+            "custom": "Custom",
+            "downloaded": "Downloaded — Community/Market",
+            "codex-exclusive": "Codex-Exclusive",
+            "builtin": "Builtin — System (for reference only)",
+        }
+
+        for source in source_order:
+            group = skills_by_source.get(source, [])
+            if not group:
+                continue
+
+            count = len(group)
+            label = source_labels.get(source, source)
+            lines.append("")
+            lines.append(f"  # ── {label} ({count}) {'─' * max(1, 52 - len(label) - len(str(count)))}")
+
+            for s in group:
+                lines.append("")
+                skill_yaml = yaml.dump([s], Dumper=FlowListDumper, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                # Indent skill entries under 'skills:' key
+                for line in skill_yaml.rstrip().split("\n"):
+                    lines.append(f"  {line}")
+
+        lines.append("")  # trailing newline
+
+        with open(self.path, "w") as f:
+            f.write("\n".join(lines))
+
+    @property
+    def data(self) -> dict:
+        if self._data is None:
+            self.load()
+        return self._data
+
+    @property
+    def skills(self) -> list[dict]:
+        return self.data.get("skills", [])
+
+    def find_skill(self, name: str) -> dict | None:
+        target = name.lower()
+        for s in self.skills:
+            if s["name"].lower() == target:
+                return s
+        return None
+
+    def find_similar(self, name: str, max_results: int = 5) -> list[str]:
+        target = name.lower()
+        scored = []
+        for s in self.skills:
+            dist = levenshtein(target, s["name"].lower())
+            if dist <= max(3, len(target) // 2):
+                scored.append((dist, s["name"]))
+        scored.sort()
+        return [n for _, n in scored[:max_results]]
+
+    def add_skill(self, entry: dict) -> None:
+        """Add a skill entry. Raises ValueError on duplicate."""
+        existing = self.find_skill(entry["name"])
+        if existing:
+            raise ValueError(f"Skill '{entry['name']}' already exists (registered as '{existing['name']}')")
+
+        entry.setdefault("created_at", now_iso())
+        self.skills.append(entry)
+        self.save()
+
+    def remove_skill(self, name: str) -> dict:
+        """Remove a skill by name. Returns removed entry. Raises KeyError if not found."""
+        target = name.lower()
+        for i, s in enumerate(self.skills):
+            if s["name"].lower() == target:
+                removed = self.skills.pop(i)
+                self.save()
+                return removed
+        raise KeyError(f"Skill '{name}' not found in registry")
+
+    def update_skill(self, name: str, updates: dict) -> tuple[dict, dict]:
+        """Update a skill's fields. Returns (before, after). Raises KeyError if not found."""
+        skill = self.find_skill(name)
+        if not skill:
+            raise KeyError(f"Skill '{name}' not found in registry")
+
+        before = dict(skill)
+        for k, v in updates.items():
+            if v is not None:
+                skill[k] = v
+        skill["updated_at"] = now_iso()
+        self.save()
+        return before, dict(skill)
+
+
+# ── Load helper (backward compat) ────────────────────────────────────
+def load_registry() -> dict:
+    """Load and return the registry YAML."""
+    return RegistryWriter().load()
+
+
+def save_registry(data: dict) -> None:
+    """Write registry back to YAML."""
+    RegistryWriter().save(data)
+
+
+def resolve_profile_tags(registry: dict, profile_name: str) -> list[str]:
+    profiles = registry.get("profiles", {})
+    if profile_name not in profiles:
+        print(f"Error: unknown profile '{profile_name}'", file=sys.stderr)
+        print(f"Available profiles: {', '.join(profiles.keys())}", file=sys.stderr)
+        sys.exit(1)
+    return profiles[profile_name].get("tags", [])
+
+
+def skill_matches_tags(skill: dict, tags: list[str]) -> bool:
+    if "*" in tags:
+        return True
+    skill_tags = set(skill.get("tags", []))
+    return bool(skill_tags & set(tags))
+
+
+def skill_matches_agent(skill: dict, agent: str | None) -> bool:
+    if agent is None:
+        return True
+    skill_agent = skill.get("agent", "universal")
+    return skill_agent == "universal" or skill_agent == agent
+
+
+# ── Commands — Read-Only ──────────────────────────────────────────────
 def cmd_list(args: argparse.Namespace) -> None:
     """List skills with optional filters."""
     registry = load_registry()
     skills = registry.get("skills", [])
 
-    # Apply filters
     filtered = skills
     if args.source:
         filtered = [s for s in filtered if s.get("source") == args.source]
@@ -103,12 +321,11 @@ def cmd_list(args: argparse.Namespace) -> None:
     if not args.disabled:
         filtered = [s for s in filtered if not s.get("disabled", False)]
 
-    # Format output
     if args.format == "json":
         print(json.dumps(filtered, indent=2, ensure_ascii=False))
     elif args.format == "yaml":
         print(yaml.dump(filtered, default_flow_style=False, allow_unicode=True))
-    else:  # table
+    else:
         rows = []
         for s in filtered:
             tags = ", ".join(s.get("tags", []))
@@ -125,7 +342,6 @@ def cmd_deploy(args: argparse.Namespace) -> None:
     registry = load_registry()
     skills = registry.get("skills", [])
 
-    # Resolve tags
     if args.tags:
         tags = args.tags.split(",")
     elif args.profile:
@@ -140,7 +356,6 @@ def cmd_deploy(args: argparse.Namespace) -> None:
 
     target = Path(os.path.expanduser(args.target)).resolve()
 
-    # Detect agent type from target directory
     agent = args.agent
     if agent is None:
         if (target / ".codex").exists():
@@ -148,13 +363,11 @@ def cmd_deploy(args: argparse.Namespace) -> None:
         else:
             agent = "claude"
 
-    # Determine skills dir
     if agent == "codex":
         skills_dir = target / ".codex" / "skills"
     else:
         skills_dir = target / ".claude" / "skills"
 
-    # Filter skills
     deployable = []
     for s in skills:
         if s.get("disabled", False):
@@ -179,7 +392,6 @@ def cmd_deploy(args: argparse.Namespace) -> None:
         print("No skills matched the given filters.")
         return
 
-    # Deploy
     if not args.dry_run:
         skills_dir.mkdir(parents=True, exist_ok=True)
 
@@ -196,7 +408,6 @@ def cmd_deploy(args: argparse.Namespace) -> None:
                 created += 1
         else:
             if link_path.is_symlink():
-                # Check if it points to the right place
                 current_target = link_path.resolve()
                 if current_target == source_path:
                     skipped += 1
@@ -206,7 +417,6 @@ def cmd_deploy(args: argparse.Namespace) -> None:
             elif link_path.exists():
                 if args.force:
                     if link_path.is_dir():
-                        import shutil
                         shutil.rmtree(link_path)
                     else:
                         link_path.unlink()
@@ -217,7 +427,6 @@ def cmd_deploy(args: argparse.Namespace) -> None:
             link_path.symlink_to(source_path)
             created += 1
 
-    # Clean unmatched symlinks
     if args.clean and not args.dry_run and skills_dir.exists():
         deployed_names = {name for name, _ in deployable}
         removed = 0
@@ -226,7 +435,7 @@ def cmd_deploy(args: argparse.Namespace) -> None:
                 entry.unlink()
                 removed += 1
         if removed:
-            print(f"  🗑  Removed {removed} unmatched symlinks")
+            print(f"  Removed {removed} unmatched symlinks")
 
     prefix = "[DRY-RUN] " if args.dry_run else ""
     print(f"\n{prefix}Deploy to {skills_dir}:")
@@ -240,7 +449,6 @@ def cmd_verify(args: argparse.Namespace) -> None:
     errors = []
     warnings = []
 
-    # 1. Required fields
     required_fields = ["name", "source", "agent", "tags", "description"]
     for i, s in enumerate(skills):
         for field in required_fields:
@@ -249,14 +457,12 @@ def cmd_verify(args: argparse.Namespace) -> None:
                     continue
                 errors.append(f"Skill #{i} ({s.get('name', '?')}): missing required field '{field}'")
 
-    # 2. Enum validation
     for s in skills:
         if s.get("source") not in VALID_SOURCES:
             errors.append(f"{s['name']}: invalid source '{s.get('source')}'")
         if s.get("agent") not in VALID_AGENTS:
             errors.append(f"{s['name']}: invalid agent '{s.get('agent')}'")
 
-    # 3. Name uniqueness (case-insensitive)
     seen_names: dict[str, str] = {}
     for s in skills:
         lower = s["name"].lower()
@@ -264,7 +470,6 @@ def cmd_verify(args: argparse.Namespace) -> None:
             errors.append(f"Duplicate name: '{s['name']}' conflicts with '{seen_names[lower]}'")
         seen_names[lower] = s["name"]
 
-    # 4. Path existence (skip builtin and disabled)
     for s in skills:
         if s.get("source") == "builtin":
             continue
@@ -280,7 +485,6 @@ def cmd_verify(args: argparse.Namespace) -> None:
         elif not skill_md.exists():
             warnings.append(f"{s['name']}: SKILL.md not found at {resolved}")
 
-    # 5. Unregistered skills in custom/
     custom_dir = REPO_ROOT / "skills" / "custom"
     registered_paths = set()
     for s in skills:
@@ -294,7 +498,6 @@ def cmd_verify(args: argparse.Namespace) -> None:
             if skill_dir not in registered_paths:
                 warnings.append(f"Unregistered custom skill: {skill_dir.relative_to(REPO_ROOT)}")
 
-    # 6. Unregistered skills in ~/.agents/skills/
     agents_dir = Path.home() / ".agents" / "skills"
     if agents_dir.exists():
         for entry in agents_dir.iterdir():
@@ -303,17 +506,16 @@ def cmd_verify(args: argparse.Namespace) -> None:
                 if resolved not in registered_paths:
                     warnings.append(f"Unregistered downloaded skill: {entry}")
 
-    # Report
     if errors:
-        print("❌ ERRORS:")
+        print("ERRORS:")
         for e in errors:
-            print(f"  • {e}")
+            print(f"  * {e}")
     if warnings:
-        print("⚠  WARNINGS:")
+        print("WARNINGS:")
         for w in warnings:
-            print(f"  • {w}")
+            print(f"  * {w}")
     if not errors and not warnings:
-        print("✅ Registry is consistent. All checks passed.")
+        print("Registry is consistent. All checks passed.")
 
     total = len(skills)
     builtin = sum(1 for s in skills if s.get("source") == "builtin")
@@ -353,7 +555,6 @@ def cmd_scan(args: argparse.Namespace) -> None:
         for entry in scan_dir.iterdir():
             if entry.name.startswith("."):
                 continue
-            # Resolve symlink targets
             resolved = entry.resolve() if entry.is_symlink() else entry
             if not resolved.is_dir():
                 continue
@@ -361,11 +562,9 @@ def cmd_scan(args: argparse.Namespace) -> None:
                 continue
             if resolved in registered_paths:
                 continue
-            # Also check by name
             if entry.name.lower() in registered_names:
                 continue
 
-            # Extract description from SKILL.md
             desc = ""
             try:
                 with open(resolved / "SKILL.md") as f:
@@ -386,7 +585,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
             })
 
     if not found:
-        print("✅ No unregistered skills found.")
+        print("No unregistered skills found.")
         return
 
     print(f"Found {len(found)} unregistered skill(s):\n")
@@ -399,6 +598,8 @@ def cmd_scan(args: argparse.Namespace) -> None:
         print()
 
     if args.register:
+        writer = RegistryWriter()
+        writer.load()
         added = 0
         for f in found:
             new_skill = {
@@ -409,28 +610,28 @@ def cmd_scan(args: argparse.Namespace) -> None:
                 "path": f["path"],
                 "description": f["description"] or f"(no description) {f['name']}",
             }
-            registry["skills"].append(new_skill)
-            added += 1
-            print(f"  ✓ Registered {f['name']} (tags: [] — edit registry to add tags)")
+            try:
+                writer.add_skill(new_skill)
+                added += 1
+                print(f"  + Registered {f['name']} (tags: [] — edit registry to add tags)")
+            except ValueError as e:
+                print(f"  ! Skip {f['name']}: {e}", file=sys.stderr)
 
-        save_registry(registry)
         print(f"\n{added} skills added to registry. Edit {REGISTRY_PATH} to assign tags.")
 
 
 def cmd_info(args: argparse.Namespace) -> None:
     """Show detailed info for a single skill."""
-    registry = load_registry()
-    skills = registry.get("skills", [])
-
-    target_name = args.name.lower()
-    match = None
-    for s in skills:
-        if s["name"].lower() == target_name:
-            match = s
-            break
+    writer = RegistryWriter()
+    writer.load()
+    match = writer.find_skill(args.name)
 
     if not match:
-        print(f"Skill '{args.name}' not found in registry.", file=sys.stderr)
+        similar = writer.find_similar(args.name)
+        msg = f"Skill '{args.name}' not found in registry."
+        if similar:
+            msg += f"\n  Did you mean: {', '.join(similar)}"
+        print(msg, file=sys.stderr)
         sys.exit(1)
 
     resolved = expand_path(match.get("path"))
@@ -443,15 +644,20 @@ def cmd_info(args: argparse.Namespace) -> None:
     print(f"Tags:        {', '.join(match.get('tags', []))}")
     print(f"Path:        {match.get('path', 'null')}")
     print(f"Resolved:    {resolved or 'N/A'}")
-    print(f"Exists:      {'✅' if exists else '❌'}")
-    print(f"SKILL.md:    {'✅' if has_skill_md else '❌'}")
+    print(f"Exists:      {'yes' if exists else 'no'}")
+    print(f"SKILL.md:    {'yes' if has_skill_md else 'no'}")
     print(f"Description: {match.get('description', '')}")
     if match.get("disabled"):
-        print(f"Disabled:    ⚠ YES")
-    if match.get("origin"):
-        print(f"Origin:      {match['origin']}")
+        print(f"Disabled:    YES")
+    if match.get("import_origin"):
+        print(f"Imported:    {match['import_origin']}")
+    if match.get("install_source"):
+        print(f"Install src: {match['install_source']}")
+    if match.get("created_at"):
+        print(f"Created:     {match['created_at']}")
+    if match.get("updated_at"):
+        print(f"Updated:     {match['updated_at']}")
 
-    # Find where this skill is deployed (check common locations)
     if resolved:
         deployed_at = []
         for check_dir in [Path.home() / ".claude" / "skills", Path.home() / ".codex" / "skills"]:
@@ -462,6 +668,483 @@ def cmd_info(args: argparse.Namespace) -> None:
             print(f"Deployed to: {', '.join(deployed_at)}")
 
 
+# ── Commands — CRUD ───────────────────────────────────────────────────
+def cmd_add(args: argparse.Namespace) -> None:
+    """Register a new skill in the registry."""
+    writer = RegistryWriter()
+    writer.load()
+
+    tags = sorted(set(args.tags.split(","))) if args.tags else []
+    agents = args.agent  # single value: claude, codex, opencode, universal
+
+    entry = {
+        "name": args.name,
+        "source": args.source,
+        "agent": agents,
+        "tags": tags,
+        "description": args.description or "",
+    }
+
+    # Determine path for custom skills
+    if args.source == "custom":
+        if args.path:
+            entry["path"] = args.path
+        else:
+            category = args.category or tags[0] if tags else "misc"
+            entry["path"] = f"skills/custom/{category}/{args.name}"
+
+        # Create SKILL.md if it doesn't exist
+        resolved = expand_path(entry["path"])
+        skill_md = resolved / "SKILL.md"
+        if not skill_md.exists():
+            resolved.mkdir(parents=True, exist_ok=True)
+            skill_md.write_text(SKILL_MD_TEMPLATE.format(
+                name=args.name,
+                description=args.description or args.name,
+            ))
+            print(f"  Created {skill_md.relative_to(REPO_ROOT)}")
+    elif args.path:
+        entry["path"] = args.path
+
+    if args.install_source:
+        entry["install_source"] = args.install_source
+
+    try:
+        writer.add_skill(entry)
+        print(f"  + Added '{args.name}' (source={args.source}, tags={tags})")
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_remove(args: argparse.Namespace) -> None:
+    """Remove a skill from the registry."""
+    writer = RegistryWriter()
+    writer.load()
+
+    skill = writer.find_skill(args.name)
+    if not skill:
+        similar = writer.find_similar(args.name)
+        msg = f"Error: Skill '{args.name}' not found."
+        if similar:
+            msg += f"\n  Did you mean: {', '.join(similar)}"
+        print(msg, file=sys.stderr)
+        sys.exit(1)
+
+    # Confirm unless --force
+    if not args.force and sys.stdin.isatty():
+        print(f"Will remove: {skill['name']} (source={skill.get('source')}, tags={skill.get('tags', [])})")
+        if args.delete_files:
+            resolved = expand_path(skill.get("path"))
+            if resolved:
+                print(f"  Will also delete: {resolved}")
+        answer = input("Proceed? [y/N] ").strip().lower()
+        if answer != "y":
+            print("Cancelled.")
+            return
+
+    try:
+        removed = writer.remove_skill(args.name)
+    except KeyError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"  - Removed '{removed['name']}' from registry")
+
+    # Delete files if requested
+    if args.delete_files:
+        resolved = expand_path(removed.get("path"))
+        if resolved and resolved.exists():
+            shutil.rmtree(resolved)
+            print(f"  - Deleted {resolved}")
+            # Clean up empty parent directories
+            parent = resolved.parent
+            custom_root = (REPO_ROOT / "skills" / "custom").resolve()
+            while parent != custom_root and parent.exists():
+                if not any(parent.iterdir()):
+                    parent.rmdir()
+                    print(f"  - Cleaned empty dir {parent.relative_to(REPO_ROOT)}")
+                    parent = parent.parent
+                else:
+                    break
+
+    print("  Note: deployed symlinks are not affected. Run `deploy --clean` to sync.")
+
+
+def cmd_update(args: argparse.Namespace) -> None:
+    """Update a skill's metadata."""
+    writer = RegistryWriter()
+    writer.load()
+
+    skill = writer.find_skill(args.name)
+    if not skill:
+        similar = writer.find_similar(args.name)
+        msg = f"Error: Skill '{args.name}' not found."
+        if similar:
+            msg += f"\n  Did you mean: {', '.join(similar)}"
+        print(msg, file=sys.stderr)
+        sys.exit(1)
+
+    # Validate mutually exclusive tag options
+    if args.set_tags and (args.add_tags or args.remove_tags):
+        print("Error: --set-tags cannot be used with --add-tags or --remove-tags", file=sys.stderr)
+        sys.exit(1)
+
+    updates = {}
+
+    # Handle tags
+    if args.set_tags:
+        updates["tags"] = sorted(set(args.set_tags.split(",")))
+    else:
+        current_tags = set(skill.get("tags", []))
+        changed = False
+        if args.add_tags:
+            current_tags |= set(args.add_tags.split(","))
+            changed = True
+        if args.remove_tags:
+            current_tags -= set(args.remove_tags.split(","))
+            changed = True
+        if changed:
+            updates["tags"] = sorted(current_tags)
+
+    # Handle other fields
+    if args.agent:
+        updates["agent"] = args.agent
+    if args.source:
+        if args.source not in VALID_SOURCES:
+            print(f"Error: invalid source '{args.source}'. Valid: {', '.join(sorted(VALID_SOURCES))}", file=sys.stderr)
+            sys.exit(1)
+        updates["source"] = args.source
+    if args.description is not None:
+        updates["description"] = args.description
+    if args.path is not None:
+        updates["path"] = args.path
+
+    if not updates:
+        print("Nothing to update. Provide at least one flag.")
+        sys.exit(0)
+
+    try:
+        before, after = writer.update_skill(args.name, updates)
+    except KeyError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Show diff
+    print(f"Updated '{args.name}':")
+    for key in updates:
+        old_val = before.get(key, "(none)")
+        new_val = after.get(key, "(none)")
+        if old_val != new_val:
+            print(f"  {key}: {old_val} -> {new_val}")
+
+
+def cmd_import(args: argparse.Namespace) -> None:
+    """Import an external skill into the repo and register it."""
+    source_path = Path(os.path.expanduser(args.path)).resolve()
+
+    # If path points to SKILL.md, use parent dir
+    if source_path.name == "SKILL.md":
+        source_dir = source_path.parent
+    elif (source_path / "SKILL.md").exists():
+        source_dir = source_path
+    else:
+        print(f"Error: SKILL.md not found at {source_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Determine name
+    name = args.name or source_dir.name
+
+    # Auto-detect agent from path
+    agent = args.agent
+    if not agent:
+        path_str = str(source_dir)
+        if ".codex/" in path_str:
+            agent = "codex"
+        elif ".claude/" in path_str:
+            agent = "claude"
+        else:
+            agent = "universal"
+
+    tags = sorted(set(args.tags.split(","))) if args.tags else []
+    category = args.category or "imported"
+
+    # Target directory
+    target_dir = REPO_ROOT / "skills" / "custom" / category / name
+    if target_dir.exists():
+        print(f"Error: target directory already exists: {target_dir.relative_to(REPO_ROOT)}", file=sys.stderr)
+        sys.exit(1)
+
+    # Copy files (excluding ignored dirs)
+    def ignore_fn(directory, contents):
+        return [c for c in contents if c in COPY_IGNORE]
+
+    shutil.copytree(source_dir, target_dir, ignore=ignore_fn)
+    print(f"  Copied {source_dir} -> {target_dir.relative_to(REPO_ROOT)}")
+
+    # Register
+    writer = RegistryWriter()
+    writer.load()
+
+    entry = {
+        "name": name,
+        "source": "custom",
+        "agent": agent,
+        "tags": tags,
+        "path": f"skills/custom/{category}/{name}",
+        "description": "",
+        "import_origin": str(source_dir),
+    }
+
+    # Try to extract description from SKILL.md
+    skill_md = target_dir / "SKILL.md"
+    if skill_md.exists():
+        try:
+            with open(skill_md) as f:
+                for line in f:
+                    if line.startswith("description:"):
+                        entry["description"] = line.split(":", 1)[1].strip().strip('"').strip("'")[:120]
+                        break
+        except Exception:
+            pass
+
+    try:
+        writer.add_skill(entry)
+        print(f"  + Registered '{name}' (source=custom, tags={tags}, import_origin={source_dir})")
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        # Rollback: remove copied files
+        shutil.rmtree(target_dir)
+        sys.exit(1)
+
+
+def cmd_install(args: argparse.Namespace) -> None:
+    """Reinstall downloaded skills from their install sources."""
+    writer = RegistryWriter()
+    writer.load()
+
+    target_dir = Path(os.path.expanduser(args.target)).resolve()
+    only = set(args.only.split(",")) if args.only else None
+
+    downloaded = [s for s in writer.skills if s.get("source") == "downloaded"]
+    if only:
+        downloaded = [s for s in downloaded if s["name"] in only]
+
+    if not downloaded:
+        print("No downloaded skills to install.")
+        return
+
+    # Check if gh is available for github: sources
+    has_gh = shutil.which("gh") is not None
+
+    installed = 0
+    skipped = 0
+    failed = []
+
+    for skill in downloaded:
+        name = skill["name"]
+        install_source = skill.get("install_source", "")
+        skill_target = target_dir / name
+
+        if skill_target.exists() and not args.force:
+            skipped += 1
+            continue
+
+        if not install_source:
+            # No install source — just check if path exists already
+            resolved = expand_path(skill.get("path"))
+            if resolved and resolved.exists():
+                skipped += 1
+            else:
+                failed.append((name, "no install_source defined"))
+            continue
+
+        print(f"  Installing {name}...", end=" ")
+
+        try:
+            if install_source.startswith("github:"):
+                if not has_gh:
+                    failed.append((name, "gh CLI not found (brew install gh)"))
+                    print("FAIL")
+                    continue
+                success = _install_github(install_source[7:], skill_target)
+            elif install_source.startswith("url:"):
+                success = _install_url(install_source[4:], skill_target)
+            elif install_source.startswith("local:"):
+                success = _install_local(install_source[6:], skill_target)
+            else:
+                failed.append((name, f"unknown install_source protocol: {install_source}"))
+                print("FAIL")
+                continue
+
+            if success:
+                installed += 1
+                print("OK")
+            else:
+                failed.append((name, "installation returned false"))
+                print("FAIL")
+        except Exception as e:
+            failed.append((name, str(e)))
+            print("FAIL")
+
+    print(f"\nInstalled: {installed}, Skipped: {skipped}, Failed: {len(failed)}")
+    if failed:
+        print("\nFailed:")
+        for name, reason in failed:
+            print(f"  * {name}: {reason}")
+
+
+def _install_github(spec: str, target: Path) -> bool:
+    """Install from github:<owner>/<repo>/<path>."""
+    parts = spec.split("/", 2)
+    if len(parts) < 2:
+        raise ValueError(f"Invalid github spec: {spec} (expected owner/repo[/path])")
+
+    owner, repo = parts[0], parts[1]
+    subpath = parts[2] if len(parts) > 2 else ""
+
+    # Use gh api to download
+    target.mkdir(parents=True, exist_ok=True)
+
+    if subpath:
+        # Download specific directory contents
+        api_url = f"/repos/{owner}/{repo}/contents/{subpath}"
+        result = subprocess.run(
+            ["gh", "api", api_url, "--jq", ".[] | .download_url"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"gh api failed: {result.stderr}")
+        for url in result.stdout.strip().split("\n"):
+            if url:
+                filename = url.rsplit("/", 1)[-1]
+                subprocess.run(
+                    ["curl", "-sL", "-o", str(target / filename), url],
+                    check=True,
+                )
+    else:
+        # Clone entire repo and extract skills
+        result = subprocess.run(
+            ["gh", "repo", "clone", f"{owner}/{repo}", str(target), "--", "--depth=1"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"gh clone failed: {result.stderr}")
+
+    return (target / "SKILL.md").exists() or any(target.iterdir())
+
+
+def _install_url(url: str, target: Path) -> bool:
+    """Install from a URL (download SKILL.md)."""
+    import urllib.request
+    target.mkdir(parents=True, exist_ok=True)
+    dest = target / "SKILL.md"
+    urllib.request.urlretrieve(url, str(dest))
+    return dest.exists()
+
+
+def _install_local(path_str: str, target: Path) -> bool:
+    """Install from a local path (copy)."""
+    source = Path(os.path.expanduser(path_str)).resolve()
+    if not source.exists():
+        raise FileNotFoundError(f"Local source not found: {source}")
+
+    def ignore_fn(directory, contents):
+        return [c for c in contents if c in COPY_IGNORE]
+
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(source, target, ignore=ignore_fn)
+    return (target / "SKILL.md").exists()
+
+
+def cmd_diff(args: argparse.Namespace) -> None:
+    """Compare registry state with filesystem."""
+    writer = RegistryWriter()
+    writer.load()
+
+    entries = []  # (status, name, detail)
+
+    # Check all registered skills
+    for skill in writer.skills:
+        name = skill["name"]
+        source = skill.get("source", "")
+
+        if source == "builtin":
+            continue
+
+        if skill.get("disabled", False):
+            entries.append(("DISABLED", name, "skipped (disabled)"))
+            continue
+
+        resolved = expand_path(skill.get("path"))
+        if resolved is None:
+            entries.append(("MISSING", name, "path is null"))
+            continue
+
+        skill_md = resolved / "SKILL.md"
+        if not resolved.exists():
+            entries.append(("MISSING", name, f"{resolved} not found"))
+        elif not skill_md.exists():
+            entries.append(("PARTIAL", name, f"dir exists but SKILL.md missing at {resolved}"))
+        else:
+            entries.append(("OK", name, ""))
+
+    # Scan for unregistered skills (EXTRA)
+    registered_paths = set()
+    registered_names = set()
+    for s in writer.skills:
+        registered_names.add(s["name"].lower())
+        resolved = expand_path(s.get("path"))
+        if resolved:
+            registered_paths.add(resolved)
+
+    scan_dirs = [
+        ("custom", REPO_ROOT / "skills" / "custom"),
+        ("agents", Path.home() / ".agents" / "skills"),
+        ("codex", Path.home() / ".codex" / "skills"),
+        ("claude", Path.home() / ".claude" / "skills"),
+    ]
+
+    for label, scan_dir in scan_dirs:
+        if not scan_dir.exists():
+            continue
+        for entry_path in scan_dir.iterdir():
+            if entry_path.name.startswith("."):
+                continue
+            resolved = entry_path.resolve() if entry_path.is_symlink() else entry_path
+            if not resolved.is_dir():
+                continue
+            if not (resolved / "SKILL.md").exists():
+                continue
+            if resolved in registered_paths:
+                continue
+            if entry_path.name.lower() in registered_names:
+                # Registered by name but different path → MOVED
+                entries.append(("MOVED", entry_path.name, f"found at {resolved} but registered at different path"))
+                continue
+            entries.append(("EXTRA", entry_path.name, f"{resolved} (from {label}) not in registry"))
+
+    # Output
+    if args.format == "json":
+        print(json.dumps([{"status": s, "name": n, "detail": d} for s, n, d in entries], indent=2))
+    else:
+        ok_count = sum(1 for s, _, _ in entries if s == "OK")
+        problem_entries = [(s, n, d) for s, n, d in entries if s != "OK"]
+
+        if problem_entries:
+            rows = [[s, n, d] for s, n, d in problem_entries]
+            print(format_table(rows, ["STATUS", "NAME", "DETAIL"]))
+            print()
+
+        total = len(entries)
+        print(f"Total: {total}, OK: {ok_count}, Issues: {len(problem_entries)}")
+
+    # Exit code: 0 if no issues, 1 if any
+    has_issues = any(s not in ("OK", "DISABLED") for s, _, _ in entries)
+    sys.exit(1 if has_issues else 0)
+
+
 # ── Main ──────────────────────────────────────────────────────────────
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -470,6 +1153,7 @@ def main() -> None:
     )
     sub = parser.add_subparsers(dest="command")
 
+    # ── Read-Only Commands ────────────────────────────────────────────
     # list
     p_list = sub.add_parser("list", help="List skills with optional filters")
     p_list.add_argument("--source", choices=sorted(VALID_SOURCES), help="Filter by source")
@@ -489,7 +1173,7 @@ def main() -> None:
     p_deploy.add_argument("--force", action="store_true", help="Overwrite non-symlink entries")
 
     # verify
-    p_verify = sub.add_parser("verify", help="Verify registry consistency")
+    sub.add_parser("verify", help="Verify registry consistency")
 
     # scan
     p_scan = sub.add_parser("scan", help="Scan filesystem for unregistered skills")
@@ -498,6 +1182,54 @@ def main() -> None:
     # info
     p_info = sub.add_parser("info", help="Show detailed info for a skill")
     p_info.add_argument("name", help="Skill name")
+
+    # ── CRUD Commands ─────────────────────────────────────────────────
+    # add
+    p_add = sub.add_parser("add", help="Register a new skill")
+    p_add.add_argument("name", help="Skill name")
+    p_add.add_argument("--source", required=True, choices=sorted(VALID_SOURCES), help="Skill source type")
+    p_add.add_argument("--agent", required=True, choices=sorted(VALID_AGENTS), help="Compatible agent")
+    p_add.add_argument("--tags", required=True, help="Comma-separated tags")
+    p_add.add_argument("--category", help="Category directory (default: first tag)")
+    p_add.add_argument("--description", default="", help="One-line description")
+    p_add.add_argument("--path", help="SKILL.md directory path")
+    p_add.add_argument("--install-source", dest="install_source", help="Install source for downloaded skills")
+
+    # remove
+    p_rm = sub.add_parser("remove", help="Remove a skill from registry")
+    p_rm.add_argument("name", help="Skill name")
+    p_rm.add_argument("--delete-files", action="store_true", help="Also delete skill files")
+    p_rm.add_argument("--force", action="store_true", help="Skip confirmation prompt")
+
+    # update
+    p_up = sub.add_parser("update", help="Update a skill's metadata")
+    p_up.add_argument("name", help="Skill name")
+    p_up.add_argument("--add-tags", help="Tags to add (comma-separated)")
+    p_up.add_argument("--remove-tags", help="Tags to remove (comma-separated)")
+    p_up.add_argument("--set-tags", help="Replace all tags (comma-separated)")
+    p_up.add_argument("--agent", choices=sorted(VALID_AGENTS), help="Set agent")
+    p_up.add_argument("--source", help="Set source")
+    p_up.add_argument("--description", help="Set description")
+    p_up.add_argument("--path", help="Set path")
+
+    # ── Multi-VM Commands ─────────────────────────────────────────────
+    # import
+    p_imp = sub.add_parser("import", help="Import external skill into repo")
+    p_imp.add_argument("path", help="Path to SKILL.md or skill directory")
+    p_imp.add_argument("--name", help="Skill name (default: directory name)")
+    p_imp.add_argument("--category", default="imported", help="Category directory")
+    p_imp.add_argument("--agent", choices=sorted(VALID_AGENTS), help="Compatible agent")
+    p_imp.add_argument("--tags", required=True, help="Comma-separated tags")
+
+    # install
+    p_inst = sub.add_parser("install", help="Reinstall downloaded skills")
+    p_inst.add_argument("--target", default="~/.agents/skills/", help="Install directory")
+    p_inst.add_argument("--only", help="Install only these skills (comma-separated)")
+    p_inst.add_argument("--force", action="store_true", help="Overwrite existing")
+
+    # diff
+    p_diff = sub.add_parser("diff", help="Compare registry with filesystem")
+    p_diff.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
 
     args = parser.parse_args()
 
@@ -511,6 +1243,12 @@ def main() -> None:
         "verify": cmd_verify,
         "scan": cmd_scan,
         "info": cmd_info,
+        "add": cmd_add,
+        "remove": cmd_remove,
+        "update": cmd_update,
+        "import": cmd_import,
+        "install": cmd_install,
+        "diff": cmd_diff,
     }
     commands[args.command](args)
 

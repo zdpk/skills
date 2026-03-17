@@ -1,674 +1,639 @@
 version: 1
 
 # ── Profile Definitions ───────────────────────────────────────────────
-# 프로필은 태그 조합. skillsctl deploy <profile> --target <dir> 로 사용
 profiles:
   dev:
-    description: "개발 프로젝트 공통"
+    description: 개발 프로젝트 공통
     tags: [dev, openspec, util, meta]
   marketing:
-    description: "마케팅/콘텐츠/SNS"
+    description: 마케팅/콘텐츠/SNS
     tags: [content, social, marketing]
   maple:
-    description: "메이플스토리 BGM 프로젝트"
+    description: 메이플스토리 BGM 프로젝트
     tags: [maple, content, imagegen, youtube]
   youtube:
-    description: "YouTube 콘텐츠 제작"
+    description: YouTube 콘텐츠 제작
     tags: [youtube, content, imagegen]
   threads:
-    description: "Threads SNS 자동화"
+    description: Threads SNS 자동화
     tags: [social, content, marketing]
   full:
-    description: "모든 스킬"
-    tags: ["*"]
+    description: 모든 스킬
+    tags: ['*']
 
 # ── Skill Registry ────────────────────────────────────────────────────
 # source:  custom | downloaded | builtin | codex-exclusive
 # agent:   claude | codex | opencode | universal
 skills:
 
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — OpenSpec (11)
-  # ────────────────────────────────────────────────────────────────────
-  - name: openspec
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec
-    description: "Spec-driven development CLI wrapper"
-
-  - name: openspec-explore
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-explore
-    description: "Thinking partner for exploring ideas and requirements"
-
-  - name: openspec-new-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-new-change
-    description: "Start a new OpenSpec change with structured workflow"
-
-  - name: openspec-ff-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-ff-change
-    description: "Fast-forward through OpenSpec artifact creation"
-
-  - name: openspec-apply-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-apply-change
-    description: "Implement tasks from an OpenSpec change"
-
-  - name: openspec-verify-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-verify-change
-    description: "Verify implementation matches change artifacts"
-
-  - name: openspec-archive-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-archive-change
-    description: "Archive completed change after implementation"
-
-  - name: openspec-bulk-archive-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-bulk-archive-change
-    description: "Archive multiple completed changes at once"
-
-  - name: openspec-continue-change
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-continue-change
-    description: "Continue working on a change by creating next artifact"
-
-  - name: openspec-onboard
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-onboard
-    description: "Guided onboarding walkthrough for OpenSpec"
-
-  - name: openspec-sync-specs
-    source: custom
-    agent: universal
-    tags: [dev, openspec]
-    path: skills/custom/openspec/openspec-sync-specs
-    description: "Sync delta specs to main specs without archiving"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — Maple (6)
-  # ────────────────────────────────────────────────────────────────────
-  - name: maple-cover
-    source: custom
-    agent: universal
-    tags: [maple, content, imagegen]
-    path: skills/custom/maple/maple-cover
-    description: "Generate MapleStory cover images for BGM YouTube videos"
-
-  - name: maple-character
-    source: custom
-    agent: universal
-    tags: [maple, content, imagegen]
-    path: skills/custom/maple/maple-character
-    description: "Generate MapleStory character sprite sheets (4-direction)"
-
-  - name: maple-background
-    source: custom
-    agent: universal
-    tags: [maple, content, imagegen]
-    path: skills/custom/maple/maple-background
-    description: "Generate MapleStory map backgrounds via Google Flow"
-
-  - name: maple-style
-    source: custom
-    agent: universal
-    tags: [maple, content, imagegen]
-    path: skills/custom/maple/maple-style/maple-style
-    description: "Transform images into MapleStory 2D pixel art style"
-
-  - name: suno-prompt
-    source: custom
-    agent: universal
-    tags: [maple, content]
-    path: skills/custom/maple/suno-prompt
-    description: "Generate Suno v5 AI music prompts for MapleStory BGM"
-
-  - name: maplestory-idea
-    source: custom
-    agent: universal
-    tags: [maple, content]
-    path: skills/custom/maple/maplestory-idea
-    description: "MapleStory BGM remake idea manager with production pipeline"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — YouTube (4)
-  # ────────────────────────────────────────────────────────────────────
-  - name: yt-topic
-    source: custom
-    agent: universal
-    tags: [youtube, content]
-    path: skills/custom/youtube/yt-topic
-    description: "Discover and score YouTube video topics"
-
-  - name: yt-research
-    source: custom
-    agent: universal
-    tags: [youtube, content]
-    path: skills/custom/youtube/yt-research
-    description: "Collect and structure research for YouTube topics"
-
-  - name: yt-script
-    source: custom
-    agent: universal
-    tags: [youtube, content]
-    path: skills/custom/youtube/yt-script
-    description: "Generate and refine YouTube video scripts"
-
-  - name: yt-storyboard
-    source: custom
-    agent: universal
-    tags: [youtube, content]
-    path: skills/custom/youtube/yt-storyboard
-    description: "Decompose scripts into visual storyboards"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — Social (1)
-  # ────────────────────────────────────────────────────────────────────
-  - name: x-research
-    source: custom
-    agent: universal
-    tags: [social, content]
-    path: skills/custom/social/x-research
-    description: "General-purpose X/Twitter research agent"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — ImageGen (2)
-  # ────────────────────────────────────────────────────────────────────
-  - name: imagegen-chatgpt
-    source: custom
-    agent: universal
-    tags: [imagegen, content]
-    path: skills/custom/imagegen/imagegen-chatgpt
-    description: "Generate images via ChatGPT GPT-4o with browser automation"
-
-  - name: imagegen-flow
-    source: custom
-    agent: universal
-    tags: [imagegen, content]
-    path: skills/custom/imagegen/imagegen-flow
-    description: "Generate images via Google Flow Nano Banana"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — Util (3)
-  # ────────────────────────────────────────────────────────────────────
-  - name: re
-    source: custom
-    agent: universal
-    tags: [util]
-    path: skills/custom/util/re
-    description: "Restart current session to reload skills and hooks"
-
-  - name: switch-google-account
-    source: custom
-    agent: universal
-    tags: [util]
-    path: skills/custom/util/switch-google-account/switch-google-account
-    description: "Switch active Google account in Chrome for quota rotation"
+  # ── Custom (42) ────────────────────────────────────────────
 
   - name: flow-ingredients-sync
     source: custom
     agent: universal
     tags: [util, maple]
     path: skills/custom/util/flow-ingredients-sync/flow-ingredients-sync
-    description: "Sync Google Flow ingredient images across accounts"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — Project (2)
-  # ────────────────────────────────────────────────────────────────────
-  - name: manual-authoring
-    source: custom
-    agent: universal
-    tags: [dev]
-    path: skills/custom/project/manual-authoring
-    description: "Write/revise SNPortal technical manual prose"
-
-  - name: manual-sync
-    source: custom
-    agent: universal
-    tags: [dev]
-    path: skills/custom/project/manual-sync
-    description: "Sync SNPortal documentation counters (API, schema, etc.)"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — Threads (8)  ← ~/.claude/skills/ 에서 이관 예정
-  # ────────────────────────────────────────────────────────────────────
-  - name: threads
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads
-    description: "Main orchestrator for Threads post automation pipeline"
-
-  - name: threads-account
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-account
-    description: "Manage Threads account profiles/personas"
-
-  - name: threads-context
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-context
-    description: "Load/check/update context for post consistency"
-
-  - name: threads-publish
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-publish
-    description: "Publish Threads posts via browser automation (draft)"
-
-  - name: threads-reference
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-reference
-    description: "Discover and analyze reference Threads accounts"
-
-  - name: threads-research
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-research
-    description: "Collect and fact-check information for Threads posts"
-
-  - name: threads-topic
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-topic
-    description: "Discover and score topics for Threads posts"
-
-  - name: threads-write
-    source: custom
-    agent: claude
-    tags: [social, content, marketing]
-    path: skills/custom/threads/threads-write
-    description: "Write Threads post drafts using account tone"
-
-  # ────────────────────────────────────────────────────────────────────
-  # Custom — Meta (5)  ← skills/.claude/skills/ 에서 이관 예정
-  # ────────────────────────────────────────────────────────────────────
-  - name: verify-skill-format
-    source: custom
-    agent: claude
-    tags: [meta]
-    path: skills/custom/meta/verify-skill-format
-    description: "Verify SKILL.md files have valid frontmatter and naming"
-
-  - name: verify-implementation
-    source: custom
-    agent: claude
-    tags: [meta]
-    path: skills/custom/meta/verify-implementation
-    description: "Run verify packs and report failures with file paths"
-
-  - name: verify-skillpack
-    source: custom
-    agent: claude
-    tags: [meta]
-    path: skills/custom/meta/verify-skillpack
-    description: "Verify pack YAMLs reference existing skills"
-
-  - name: manage-skills
-    source: custom
-    agent: claude
-    tags: [meta]
-    path: skills/custom/meta/manage-skills
-    description: "Maintain and evolve verify skills and packs"
+    description: Sync Google Flow ingredient images across accounts
 
   - name: gemini-watermark-removal
     source: custom
     agent: claude
     tags: [util, imagegen]
     path: skills/custom/meta/gemini-watermark-removal
-    description: "Remove visible Gemini AI watermark from images"
+    description: Remove visible Gemini AI watermark from images
 
-  # ────────────────────────────────────────────────────────────────────
-  # Downloaded — Community/Market (28)
-  # ────────────────────────────────────────────────────────────────────
+  - name: imagegen-chatgpt
+    source: custom
+    agent: universal
+    tags: [imagegen, content]
+    path: skills/custom/imagegen/imagegen-chatgpt
+    description: Generate images via ChatGPT GPT-4o with browser automation
+
+  - name: imagegen-flow
+    source: custom
+    agent: universal
+    tags: [imagegen, content]
+    path: skills/custom/imagegen/imagegen-flow
+    description: Generate images via Google Flow Nano Banana
+
+  - name: manage-skills
+    source: custom
+    agent: claude
+    tags: [meta]
+    path: skills/custom/meta/manage-skills
+    description: Maintain and evolve verify skills and packs
+
+  - name: manual-authoring
+    source: custom
+    agent: universal
+    tags: [dev]
+    path: skills/custom/project/manual-authoring
+    description: Write/revise SNPortal technical manual prose
+
+  - name: manual-sync
+    source: custom
+    agent: universal
+    tags: [dev]
+    path: skills/custom/project/manual-sync
+    description: Sync SNPortal documentation counters (API, schema, etc.)
+
+  - name: maple-background
+    source: custom
+    agent: universal
+    tags: [maple, content, imagegen]
+    path: skills/custom/maple/maple-background
+    description: Generate MapleStory map backgrounds via Google Flow
+
+  - name: maple-character
+    source: custom
+    agent: universal
+    tags: [maple, content, imagegen]
+    path: skills/custom/maple/maple-character
+    description: Generate MapleStory character sprite sheets (4-direction)
+
+  - name: maple-cover
+    source: custom
+    agent: universal
+    tags: [maple, content, imagegen]
+    path: skills/custom/maple/maple-cover
+    description: Generate MapleStory cover images for BGM YouTube videos
+
+  - name: maple-style
+    source: custom
+    agent: universal
+    tags: [maple, content, imagegen]
+    path: skills/custom/maple/maple-style/maple-style
+    description: Transform images into MapleStory 2D pixel art style
+
+  - name: maplestory-idea
+    source: custom
+    agent: universal
+    tags: [maple, content]
+    path: skills/custom/maple/maplestory-idea
+    description: MapleStory BGM remake idea manager with production pipeline
+
+  - name: openspec
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec
+    description: Spec-driven development CLI wrapper
+
+  - name: openspec-apply-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-apply-change
+    description: Implement tasks from an OpenSpec change
+
+  - name: openspec-archive-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-archive-change
+    description: Archive completed change after implementation
+
+  - name: openspec-bulk-archive-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-bulk-archive-change
+    description: Archive multiple completed changes at once
+
+  - name: openspec-continue-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-continue-change
+    description: Continue working on a change by creating next artifact
+
+  - name: openspec-explore
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-explore
+    description: Thinking partner for exploring ideas and requirements
+
+  - name: openspec-ff-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-ff-change
+    description: Fast-forward through OpenSpec artifact creation
+
+  - name: openspec-new-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-new-change
+    description: Start a new OpenSpec change with structured workflow
+
+  - name: openspec-onboard
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-onboard
+    description: Guided onboarding walkthrough for OpenSpec
+
+  - name: openspec-sync-specs
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-sync-specs
+    description: Sync delta specs to main specs without archiving
+
+  - name: openspec-verify-change
+    source: custom
+    agent: universal
+    tags: [dev, openspec]
+    path: skills/custom/openspec/openspec-verify-change
+    description: Verify implementation matches change artifacts
+
+  - name: re
+    source: custom
+    agent: universal
+    tags: [util]
+    path: skills/custom/util/re
+    description: Restart current session to reload skills and hooks
+
+  - name: suno-prompt
+    source: custom
+    agent: universal
+    tags: [maple, content]
+    path: skills/custom/maple/suno-prompt
+    description: Generate Suno v5 AI music prompts for MapleStory BGM
+
+  - name: switch-google-account
+    source: custom
+    agent: universal
+    tags: [util]
+    path: skills/custom/util/switch-google-account/switch-google-account
+    description: Switch active Google account in Chrome for quota rotation
+
+  - name: threads
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads
+    description: Main orchestrator for Threads post automation pipeline
+
+  - name: threads-account
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-account
+    description: Manage Threads account profiles/personas
+
+  - name: threads-context
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-context
+    description: Load/check/update context for post consistency
+
+  - name: threads-publish
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-publish
+    description: Publish Threads posts via browser automation (draft)
+
+  - name: threads-reference
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-reference
+    description: Discover and analyze reference Threads accounts
+
+  - name: threads-research
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-research
+    description: Collect and fact-check information for Threads posts
+
+  - name: threads-topic
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-topic
+    description: Discover and score topics for Threads posts
+
+  - name: threads-write
+    source: custom
+    agent: claude
+    tags: [social, content, marketing]
+    path: skills/custom/threads/threads-write
+    description: Write Threads post drafts using account tone
+
+  - name: verify-implementation
+    source: custom
+    agent: claude
+    tags: [meta]
+    path: skills/custom/meta/verify-implementation
+    description: Run verify packs and report failures with file paths
+
+  - name: verify-skill-format
+    source: custom
+    agent: claude
+    tags: [meta]
+    path: skills/custom/meta/verify-skill-format
+    description: Verify SKILL.md files have valid frontmatter and naming
+
+  - name: verify-skillpack
+    source: custom
+    agent: claude
+    tags: [meta]
+    path: skills/custom/meta/verify-skillpack
+    description: Verify pack YAMLs reference existing skills
+
+  - name: x-research
+    source: custom
+    agent: universal
+    tags: [social, content]
+    path: skills/custom/social/x-research
+    description: General-purpose X/Twitter research agent
+
+  - name: yt-research
+    source: custom
+    agent: universal
+    tags: [youtube, content]
+    path: skills/custom/youtube/yt-research
+    description: Collect and structure research for YouTube topics
+
+  - name: yt-script
+    source: custom
+    agent: universal
+    tags: [youtube, content]
+    path: skills/custom/youtube/yt-script
+    description: Generate and refine YouTube video scripts
+
+  - name: yt-storyboard
+    source: custom
+    agent: universal
+    tags: [youtube, content]
+    path: skills/custom/youtube/yt-storyboard
+    description: Decompose scripts into visual storyboards
+
+  - name: yt-topic
+    source: custom
+    agent: universal
+    tags: [youtube, content]
+    path: skills/custom/youtube/yt-topic
+    description: Discover and score YouTube video topics
+
+  # ── Downloaded — Community/Market (28) ─────────────────────
+
   - name: agent-browser
     source: downloaded
     agent: claude
     tags: [dev, util]
     path: ~/.agents/skills/agent-browser
-    description: "Browser automation CLI for AI agents"
+    description: Browser automation CLI for AI agents
 
   - name: apify-trend-analysis
     source: downloaded
     agent: claude
     tags: [marketing, content]
     path: ~/.agents/skills/apify-trend-analysis
-    description: "Track trends across Google, Instagram, YouTube, TikTok"
+    description: Track trends across Google, Instagram, YouTube, TikTok
 
   - name: axum
     source: downloaded
     agent: claude
     tags: [dev]
     path: ~/.agents/skills/axum
-    description: "Axum (Rust) web framework patterns for production APIs"
+    description: Axum (Rust) web framework patterns for production APIs
 
   - name: brainstorming
     source: downloaded
     agent: claude
     tags: [dev, util]
     path: ~/.agents/skills/brainstorming
-    description: "Pre-creative-work exploration of intent and requirements"
-
-  - name: content-strategy
-    source: downloaded
-    agent: claude
-    tags: [marketing, content]
-    path: ~/.agents/skills/content-strategy
-    description: "Content planning, topic clusters, blog strategy"
-
-  - name: copywriting
-    source: downloaded
-    agent: claude
-    tags: [marketing, content]
-    path: ~/.agents/skills/copywriting
-    description: "Marketing copy for landing pages, homepages, etc."
-
-  - name: find-skills
-    source: downloaded
-    agent: claude
-    tags: [util, meta]
-    path: ~/.agents/skills/find-skills
-    description: "Discover and install agent skills"
-
-  - name: nextjs-app-router-patterns
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/nextjs-app-router-patterns
-    description: "Next.js 14+ App Router with Server Components"
-
-  - name: obsidian-cli
-    source: downloaded
-    agent: claude
-    tags: [util]
-    path: ~/.agents/skills/obsidian-cli
-    description: "Obsidian vault interaction via CLI"
-
-  - name: openspec-archiving
-    source: downloaded
-    agent: claude
-    tags: [dev, openspec]
-    path: ~/.agents/skills/openspec-archiving
-    description: "Archive completed changes and merge spec deltas"
-
-  - name: openspec-context-loading
-    source: downloaded
-    agent: claude
-    tags: [dev, openspec]
-    path: ~/.agents/skills/openspec-context-loading
-    description: "Load project context, list specs and changes"
-
-  - name: openspec-implementation
-    source: downloaded
-    agent: claude
-    tags: [dev, openspec]
-    path: ~/.agents/skills/openspec-implementation
-    description: "Implement approved specification proposals"
-
-  - name: openspec-proposal-creation
-    source: downloaded
-    agent: claude
-    tags: [dev, openspec]
-    path: ~/.agents/skills/openspec-proposal-creation
-    description: "Create structured change proposals with spec deltas"
-
-  - name: platform-optimization
-    source: downloaded
-    agent: claude
-    tags: [marketing, content]
-    path: ~/.agents/skills/platform-optimization
-    description: "TikTok/Reels/YouTube algorithm optimization"
-
-  - name: playwright-skill
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/playwright-skill
-    description: "Playwright E2E, API, component, visual testing patterns"
-
-  - name: remotion-best-practices
-    source: downloaded
-    agent: claude
-    tags: [dev, content]
-    path: ~/.agents/skills/remotion-best-practices
-    description: "Video creation in React with Remotion"
-
-  - name: rust-testing
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/rust-testing
-    description: "Rust testing patterns (unit, integration, mocking, async)"
-
-  - name: shadcn-ui
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/shadcn-ui
-    description: "shadcn/ui component library patterns"
-
-  - name: short-form-video
-    source: downloaded
-    agent: claude
-    tags: [content, marketing]
-    path: ~/.agents/skills/short-form-video
-    description: "Short-form video production workflow"
-
-  - name: shorts-script-personality
-    source: downloaded
-    agent: claude
-    tags: [content, youtube]
-    path: ~/.agents/skills/shorts-script-personality
-    description: "YouTube Shorts/Reels scripts with personality styles"
-
-  - name: skill-creator
-    source: downloaded
-    agent: claude
-    tags: [meta]
-    path: ~/.agents/skills/skill-creator
-    description: "Guide for creating new skills"
-
-  - name: tailwind-v4-shadcn
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/tailwind-v4-shadcn
-    description: "Tailwind v4 + shadcn/ui CSS variable architecture"
-
-  - name: tweet-writer
-    source: downloaded
-    agent: claude
-    tags: [social, marketing]
-    path: ~/.agents/skills/tweet-writer
-    description: "Viral tweet and thread writing with research"
-
-  - name: vercel-react-best-practices
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/vercel-react-best-practices
-    description: "React/Next.js performance optimization from Vercel"
-
-  - name: vitest
-    source: downloaded
-    agent: claude
-    tags: [dev]
-    path: ~/.agents/skills/vitest
-    description: "Modern TypeScript testing with Vite-native performance"
-
-  - name: writing-x-posts
-    source: downloaded
-    agent: claude
-    tags: [social, marketing]
-    path: ~/.agents/skills/writing-x-posts
-    description: "X/Twitter posts and threads for engagement"
-
-  - name: x-publish
-    source: downloaded
-    agent: claude
-    tags: [social, marketing]
-    path: ~/.agents/skills/x-publish
-    description: "Publish tweets/threads to X draft via browser automation"
+    description: Pre-creative-work exploration of intent and requirements
 
   - name: claude-api
     source: downloaded
     agent: claude
     tags: [dev]
     path: ~/.agents/skills/claude-api
-    description: "Build apps with Claude API or Anthropic SDK"
-    disabled: true  # Not currently installed
+    description: Build apps with Claude API or Anthropic SDK
+    disabled: true
 
-  # ────────────────────────────────────────────────────────────────────
-  # Codex-Exclusive (14)
-  # ────────────────────────────────────────────────────────────────────
+  - name: content-strategy
+    source: downloaded
+    agent: claude
+    tags: [marketing, content]
+    path: ~/.agents/skills/content-strategy
+    description: Content planning, topic clusters, blog strategy
+
+  - name: copywriting
+    source: downloaded
+    agent: claude
+    tags: [marketing, content]
+    path: ~/.agents/skills/copywriting
+    description: Marketing copy for landing pages, homepages, etc.
+
+  - name: find-skills
+    source: downloaded
+    agent: claude
+    tags: [util, meta]
+    path: ~/.agents/skills/find-skills
+    description: Discover and install agent skills
+
+  - name: nextjs-app-router-patterns
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/nextjs-app-router-patterns
+    description: Next.js 14+ App Router with Server Components
+
+  - name: obsidian-cli
+    source: downloaded
+    agent: claude
+    tags: [util]
+    path: ~/.agents/skills/obsidian-cli
+    description: Obsidian vault interaction via CLI
+
+  - name: openspec-archiving
+    source: downloaded
+    agent: claude
+    tags: [dev, openspec]
+    path: ~/.agents/skills/openspec-archiving
+    description: Archive completed changes and merge spec deltas
+
+  - name: openspec-context-loading
+    source: downloaded
+    agent: claude
+    tags: [dev, openspec]
+    path: ~/.agents/skills/openspec-context-loading
+    description: Load project context, list specs and changes
+
+  - name: openspec-implementation
+    source: downloaded
+    agent: claude
+    tags: [dev, openspec]
+    path: ~/.agents/skills/openspec-implementation
+    description: Implement approved specification proposals
+
+  - name: openspec-proposal-creation
+    source: downloaded
+    agent: claude
+    tags: [dev, openspec]
+    path: ~/.agents/skills/openspec-proposal-creation
+    description: Create structured change proposals with spec deltas
+
+  - name: platform-optimization
+    source: downloaded
+    agent: claude
+    tags: [marketing, content]
+    path: ~/.agents/skills/platform-optimization
+    description: TikTok/Reels/YouTube algorithm optimization
+
+  - name: playwright-skill
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/playwright-skill
+    description: Playwright E2E, API, component, visual testing patterns
+
+  - name: remotion-best-practices
+    source: downloaded
+    agent: claude
+    tags: [dev, content]
+    path: ~/.agents/skills/remotion-best-practices
+    description: Video creation in React with Remotion
+
+  - name: rust-testing
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/rust-testing
+    description: Rust testing patterns (unit, integration, mocking, async)
+
+  - name: shadcn-ui
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/shadcn-ui
+    description: shadcn/ui component library patterns
+
+  - name: short-form-video
+    source: downloaded
+    agent: claude
+    tags: [content, marketing]
+    path: ~/.agents/skills/short-form-video
+    description: Short-form video production workflow
+
+  - name: shorts-script-personality
+    source: downloaded
+    agent: claude
+    tags: [content, youtube]
+    path: ~/.agents/skills/shorts-script-personality
+    description: YouTube Shorts/Reels scripts with personality styles
+
+  - name: skill-creator
+    source: downloaded
+    agent: claude
+    tags: [meta]
+    path: ~/.agents/skills/skill-creator
+    description: Guide for creating new skills
+
+  - name: tailwind-v4-shadcn
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/tailwind-v4-shadcn
+    description: Tailwind v4 + shadcn/ui CSS variable architecture
+
+  - name: tweet-writer
+    source: downloaded
+    agent: claude
+    tags: [social, marketing]
+    path: ~/.agents/skills/tweet-writer
+    description: Viral tweet and thread writing with research
+
+  - name: vercel-react-best-practices
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/vercel-react-best-practices
+    description: React/Next.js performance optimization from Vercel
+
+  - name: vitest
+    source: downloaded
+    agent: claude
+    tags: [dev]
+    path: ~/.agents/skills/vitest
+    description: Modern TypeScript testing with Vite-native performance
+
+  - name: writing-x-posts
+    source: downloaded
+    agent: claude
+    tags: [social, marketing]
+    path: ~/.agents/skills/writing-x-posts
+    description: X/Twitter posts and threads for engagement
+
+  - name: x-publish
+    source: downloaded
+    agent: claude
+    tags: [social, marketing]
+    path: ~/.agents/skills/x-publish
+    description: Publish tweets/threads to X draft via browser automation
+
+  # ── Codex-Exclusive (14) ───────────────────────────────────
+
   - name: atlas
     source: codex-exclusive
     agent: codex
     tags: [util]
     path: ~/.codex/skills/atlas
-    description: "macOS AppleScript control for ChatGPT Atlas desktop app"
+    description: macOS AppleScript control for ChatGPT Atlas desktop app
 
   - name: gh-address-comments
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/gh-address-comments
-    description: "Address GitHub PR review comments via gh CLI"
+    description: Address GitHub PR review comments via gh CLI
 
   - name: gh-fix-ci
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/gh-fix-ci
-    description: "Debug/fix failing GitHub PR checks in GitHub Actions"
+    description: Debug/fix failing GitHub PR checks in GitHub Actions
 
   - name: imagegen-openai
     source: codex-exclusive
     agent: codex
     tags: [imagegen]
     path: ~/.codex/skills/imagegen
-    description: "Generate/edit images via OpenAI Image API"
+    description: Generate/edit images via OpenAI Image API
 
   - name: linear
     source: codex-exclusive
     agent: codex
     tags: [dev, util]
     path: ~/.codex/skills/linear
-    description: "Manage Linear issues, projects, team workflows"
+    description: Manage Linear issues, projects, team workflows
 
   - name: openai-docs
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/openai-docs
-    description: "OpenAI product/API documentation with citations"
+    description: OpenAI product/API documentation with citations
 
   - name: pdf
     source: codex-exclusive
     agent: codex
     tags: [util]
     path: ~/.codex/skills/pdf
-    description: "Read, create, review PDFs with Poppler/reportlab"
+    description: Read, create, review PDFs with Poppler/reportlab
 
   - name: playwright-codex
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/playwright
-    description: "Browser automation via playwright-cli wrapper"
+    description: Browser automation via playwright-cli wrapper
 
   - name: screenshot
     source: codex-exclusive
     agent: codex
     tags: [util]
     path: ~/.codex/skills/screenshot
-    description: "Desktop/system screenshots via OS-level capture"
+    description: Desktop/system screenshots via OS-level capture
 
   - name: security-best-practices
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/security-best-practices
-    description: "Language-specific security reviews (Python, JS/TS, Go)"
+    description: Language-specific security reviews (Python, JS/TS, Go)
 
   - name: security-ownership-map
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/security-ownership-map
-    description: "Git-based security ownership topology and bus factor"
+    description: Git-based security ownership topology and bus factor
 
   - name: security-threat-model
     source: codex-exclusive
     agent: codex
     tags: [dev]
     path: ~/.codex/skills/security-threat-model
-    description: "Repository-grounded threat modeling with STRIDE"
+    description: Repository-grounded threat modeling with STRIDE
 
   - name: sora
     source: codex-exclusive
     agent: codex
     tags: [content, imagegen]
     path: ~/.codex/skills/sora
-    description: "Generate/remix Sora videos via OpenAI video API"
+    description: Generate/remix Sora videos via OpenAI video API
 
   - name: spreadsheet
     source: codex-exclusive
     agent: codex
     tags: [util]
     path: ~/.codex/skills/spreadsheet
-    description: "Create/edit/analyze spreadsheets (.xlsx, .csv, .tsv)"
+    description: Create/edit/analyze spreadsheets (.xlsx, .csv, .tsv)
 
-  # ────────────────────────────────────────────────────────────────────
-  # Builtin — Codex System (3)  — 기록용, 배포 대상 아님
-  # ────────────────────────────────────────────────────────────────────
-  - name: codex-skill-creator
-    source: builtin
-    agent: codex
-    tags: []
-    path: null
-    description: "Create or update Codex skills (system)"
-
-  - name: codex-skill-installer
-    source: builtin
-    agent: codex
-    tags: []
-    path: null
-    description: "Install Codex skills from curated list or GitHub (system)"
+  # ── Builtin — System (for reference only) (3) ──────────────
 
   - name: codex-openai-docs-system
     source: builtin
     agent: codex
-    tags: []
-    path: null
-    description: "OpenAI docs with GPT-5.4 upgrade guidance (system)"
+    description: OpenAI docs with GPT-5.4 upgrade guidance (system)
+
+  - name: codex-skill-creator
+    source: builtin
+    agent: codex
+    description: Create or update Codex skills (system)
+
+  - name: codex-skill-installer
+    source: builtin
+    agent: codex
+    description: Install Codex skills from curated list or GitHub (system)
