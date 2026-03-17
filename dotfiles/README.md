@@ -255,8 +255,8 @@ profiles:
 
 skills:
   - name: openspec                    # unique identifier
-    source: custom                    # custom | downloaded | codex-exclusive | builtin
-    agent: universal                  # claude | codex | opencode | universal
+    source: custom                    # custom | downloaded | builtin
+    agent: universal                  # claude | codex | gemini | opencode | universal
     tags: [dev, openspec]             # for profile matching
     path: skills/custom/openspec/openspec  # relative to repo root (or ~/ for external)
     description: "Spec-driven development CLI"
@@ -274,7 +274,6 @@ skills:
 |--------|------------|------------|
 | `custom` | Hand-written, stored in this repo | You |
 | `downloaded` | Community skills from marketplace | `sc install` |
-| `codex-exclusive` | Codex-only (stored in `~/.codex/skills/`) | Codex system |
 | `builtin` | System skills (reference only) | Agent runtime |
 
 ## Makefile Targets

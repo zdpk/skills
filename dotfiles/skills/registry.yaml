@@ -22,11 +22,11 @@ profiles:
     tags: ['*']
 
 # ── Skill Registry ────────────────────────────────────────────────────
-# source:  custom | downloaded | builtin | codex-exclusive
+# source:  custom | downloaded | builtin
 # agent:   claude | codex | opencode | universal
 skills:
 
-  # ── Custom (42) ────────────────────────────────────────────
+  # ── Custom (43) ────────────────────────────────────────────
 
   - name: flow-ingredients-sync
     source: custom
@@ -196,6 +196,16 @@ skills:
     path: skills/custom/util/re
     description: Restart current session to reload skills and hooks
 
+  - name: sc
+    source: custom
+    agent: universal
+    tags: [dev, meta]
+    path: skills/custom/meta/sc
+    description: Manage the centralized skill registry via the sc CLI. Browse, deploy,
+      add, remove, update, import, and sync skills across agents and VMs.
+    created_at: '2026-03-17T13:32:39Z'
+    updated_at: '2026-03-17T13:32:50Z'
+
   - name: suno-prompt
     source: custom
     agent: universal
@@ -322,7 +332,7 @@ skills:
     path: skills/custom/youtube/yt-topic
     description: Discover and score YouTube video topics
 
-  # ── Downloaded — Community/Market (28) ─────────────────────
+  # ── Downloaded — Community/Market (42) ─────────────────────
 
   - name: agent-browser
     source: downloaded
@@ -337,6 +347,14 @@ skills:
     tags: [marketing, content]
     path: ~/.agents/skills/apify-trend-analysis
     description: Track trends across Google, Instagram, YouTube, TikTok
+
+  - name: atlas
+    source: downloaded
+    agent: codex
+    tags: [util]
+    path: ~/.codex/skills/atlas
+    description: macOS AppleScript control for ChatGPT Atlas desktop app
+    updated_at: '2026-03-17T14:40:03Z'
 
   - name: axum
     source: downloaded
@@ -381,6 +399,34 @@ skills:
     path: ~/.agents/skills/find-skills
     description: Discover and install agent skills
 
+  - name: gh-address-comments
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/gh-address-comments
+    description: Address GitHub PR review comments via gh CLI
+
+  - name: gh-fix-ci
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/gh-fix-ci
+    description: Debug/fix failing GitHub PR checks in GitHub Actions
+
+  - name: imagegen-openai
+    source: downloaded
+    agent: codex
+    tags: [imagegen]
+    path: ~/.codex/skills/imagegen
+    description: Generate/edit images via OpenAI Image API
+
+  - name: linear
+    source: downloaded
+    agent: codex
+    tags: [dev, util]
+    path: ~/.codex/skills/linear
+    description: Manage Linear issues, projects, team workflows
+
   - name: nextjs-app-router-patterns
     source: downloaded
     agent: claude
@@ -394,6 +440,13 @@ skills:
     tags: [util]
     path: ~/.agents/skills/obsidian-cli
     description: Obsidian vault interaction via CLI
+
+  - name: openai-docs
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/openai-docs
+    description: OpenAI product/API documentation with citations
 
   - name: openspec-archiving
     source: downloaded
@@ -423,12 +476,26 @@ skills:
     path: ~/.agents/skills/openspec-proposal-creation
     description: Create structured change proposals with spec deltas
 
+  - name: pdf
+    source: downloaded
+    agent: codex
+    tags: [util]
+    path: ~/.codex/skills/pdf
+    description: Read, create, review PDFs with Poppler/reportlab
+
   - name: platform-optimization
     source: downloaded
     agent: claude
     tags: [marketing, content]
     path: ~/.agents/skills/platform-optimization
     description: TikTok/Reels/YouTube algorithm optimization
+
+  - name: playwright-codex
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/playwright
+    description: Browser automation via playwright-cli wrapper
 
   - name: playwright-skill
     source: downloaded
@@ -450,6 +517,34 @@ skills:
     tags: [dev]
     path: ~/.agents/skills/rust-testing
     description: Rust testing patterns (unit, integration, mocking, async)
+
+  - name: screenshot
+    source: downloaded
+    agent: codex
+    tags: [util]
+    path: ~/.codex/skills/screenshot
+    description: Desktop/system screenshots via OS-level capture
+
+  - name: security-best-practices
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/security-best-practices
+    description: Language-specific security reviews (Python, JS/TS, Go)
+
+  - name: security-ownership-map
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/security-ownership-map
+    description: Git-based security ownership topology and bus factor
+
+  - name: security-threat-model
+    source: downloaded
+    agent: codex
+    tags: [dev]
+    path: ~/.codex/skills/security-threat-model
+    description: Repository-grounded threat modeling with STRIDE
 
   - name: shadcn-ui
     source: downloaded
@@ -478,6 +573,20 @@ skills:
     tags: [meta]
     path: ~/.agents/skills/skill-creator
     description: Guide for creating new skills
+
+  - name: sora
+    source: downloaded
+    agent: codex
+    tags: [content, imagegen]
+    path: ~/.codex/skills/sora
+    description: Generate/remix Sora videos via OpenAI video API
+
+  - name: spreadsheet
+    source: downloaded
+    agent: codex
+    tags: [util]
+    path: ~/.codex/skills/spreadsheet
+    description: Create/edit/analyze spreadsheets (.xlsx, .csv, .tsv)
 
   - name: tailwind-v4-shadcn
     source: downloaded
@@ -520,106 +629,6 @@ skills:
     tags: [social, marketing]
     path: ~/.agents/skills/x-publish
     description: Publish tweets/threads to X draft via browser automation
-
-  # ── Codex-Exclusive (14) ───────────────────────────────────
-
-  - name: atlas
-    source: codex-exclusive
-    agent: codex
-    tags: [util]
-    path: ~/.codex/skills/atlas
-    description: macOS AppleScript control for ChatGPT Atlas desktop app
-
-  - name: gh-address-comments
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/gh-address-comments
-    description: Address GitHub PR review comments via gh CLI
-
-  - name: gh-fix-ci
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/gh-fix-ci
-    description: Debug/fix failing GitHub PR checks in GitHub Actions
-
-  - name: imagegen-openai
-    source: codex-exclusive
-    agent: codex
-    tags: [imagegen]
-    path: ~/.codex/skills/imagegen
-    description: Generate/edit images via OpenAI Image API
-
-  - name: linear
-    source: codex-exclusive
-    agent: codex
-    tags: [dev, util]
-    path: ~/.codex/skills/linear
-    description: Manage Linear issues, projects, team workflows
-
-  - name: openai-docs
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/openai-docs
-    description: OpenAI product/API documentation with citations
-
-  - name: pdf
-    source: codex-exclusive
-    agent: codex
-    tags: [util]
-    path: ~/.codex/skills/pdf
-    description: Read, create, review PDFs with Poppler/reportlab
-
-  - name: playwright-codex
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/playwright
-    description: Browser automation via playwright-cli wrapper
-
-  - name: screenshot
-    source: codex-exclusive
-    agent: codex
-    tags: [util]
-    path: ~/.codex/skills/screenshot
-    description: Desktop/system screenshots via OS-level capture
-
-  - name: security-best-practices
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/security-best-practices
-    description: Language-specific security reviews (Python, JS/TS, Go)
-
-  - name: security-ownership-map
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/security-ownership-map
-    description: Git-based security ownership topology and bus factor
-
-  - name: security-threat-model
-    source: codex-exclusive
-    agent: codex
-    tags: [dev]
-    path: ~/.codex/skills/security-threat-model
-    description: Repository-grounded threat modeling with STRIDE
-
-  - name: sora
-    source: codex-exclusive
-    agent: codex
-    tags: [content, imagegen]
-    path: ~/.codex/skills/sora
-    description: Generate/remix Sora videos via OpenAI video API
-
-  - name: spreadsheet
-    source: codex-exclusive
-    agent: codex
-    tags: [util]
-    path: ~/.codex/skills/spreadsheet
-    description: Create/edit/analyze spreadsheets (.xlsx, .csv, .tsv)
 
   # ── Builtin — System (for reference only) (3) ──────────────
 

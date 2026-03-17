@@ -20,8 +20,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 REGISTRY_PATH = REPO_ROOT / "skills" / "registry.yaml"
 
-VALID_SOURCES = {"custom", "downloaded", "builtin", "codex-exclusive"}
-VALID_AGENTS = {"claude", "codex", "opencode", "universal"}
+VALID_SOURCES = {"custom", "downloaded", "builtin"}
+VALID_AGENTS = {"claude", "codex", "gemini", "opencode", "universal"}
 
 FIELD_ORDER = [
     "name", "source", "agent", "tags", "path", "description",
@@ -169,12 +169,12 @@ class RegistryWriter:
 
         # Skills with section comments
         lines.append("# ── Skill Registry ────────────────────────────────────────────────────")
-        lines.append("# source:  custom | downloaded | builtin | codex-exclusive")
+        lines.append("# source:  custom | downloaded | builtin")
         lines.append("# agent:   claude | codex | opencode | universal")
         lines.append("skills:")
 
         # Group skills by source
-        source_order = ["custom", "downloaded", "codex-exclusive", "builtin"]
+        source_order = ["custom", "downloaded", "builtin"]
         skills_by_source: dict[str, list[dict]] = {}
         for s in self._data.get("skills", []):
             src = s.get("source", "custom")
@@ -183,7 +183,6 @@ class RegistryWriter:
         source_labels = {
             "custom": "Custom",
             "downloaded": "Downloaded — Community/Market",
-            "codex-exclusive": "Codex-Exclusive",
             "builtin": "Builtin — System (for reference only)",
         }
 
@@ -521,8 +520,7 @@ def cmd_verify(args: argparse.Namespace) -> None:
     builtin = sum(1 for s in skills if s.get("source") == "builtin")
     custom = sum(1 for s in skills if s.get("source") == "custom")
     downloaded = sum(1 for s in skills if s.get("source") == "downloaded")
-    codex_excl = sum(1 for s in skills if s.get("source") == "codex-exclusive")
-    print(f"\nSummary: {total} skills ({custom} custom, {downloaded} downloaded, {codex_excl} codex-exclusive, {builtin} builtin)")
+    print(f"\nSummary: {total} skills ({custom} custom, {downloaded} downloaded, {builtin} builtin)")
     print(f"Errors: {len(errors)}, Warnings: {len(warnings)}")
 
     sys.exit(1 if errors else 0)
@@ -575,7 +573,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
             except Exception:
                 pass
 
-            source_guess = "custom" if label == "custom" else "downloaded" if label == "agents" else "codex-exclusive" if label == "codex" else "unknown"
+            source_guess = "custom" if label == "custom" else "downloaded"
             found.append({
                 "name": entry.name,
                 "path": str(resolved),
