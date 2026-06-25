@@ -19,6 +19,8 @@ make sync         Full sync: MCP + dotfiles + skills + plugins
 make generate     Regenerate MCP configs from .env
 make link         Create dotfile symlinks
 make skills       Sync custom skills to Claude/Codex/OpenCode
+make global-skills-install
+                  Symlink root `skills/` into Codex/Claude/Antigravity
 make plugins      Install Claude plugins from manifest
 make status       Show current state
 ```
@@ -47,6 +49,51 @@ Organized by category under `dotfiles/skills/custom/`:
 | **util** | flow-ingredients-sync, switch-google-account, re | General utilities |
 
 Skills are symlinked flat into each tool (`~/.claude/skills/<name>`, etc.) — categories are repo-only organization.
+
+## Global language skills
+
+Language skill sources live under `skills/lang/`.
+
+They are installed as flat symlinks into each tool. The repo category is not part of the installed skill name.
+
+Current names:
+
+- `ja-core`: Japanese processing core
+- `ja-ko`: Japanese to Korean
+- `ko-ja`: Korean to Japanese
+
+Naming rule:
+
+- Direction skills use `<source>-<target>`
+- Language core skills use `<language>-core`
+- Language codes use ISO 639-1, such as `ko`, `ja`, `en`, `id`
+
+Install or update:
+
+```bash
+make global-skills-install
+make global-skills-update
+```
+
+Dry-run and list:
+
+```bash
+make global-skills-dry-run
+make global-skills-list
+```
+
+Default targets:
+
+- Codex: `~/.codex/skills`
+- Claude: `~/.claude/skills`
+- Antigravity: `~/.gemini/antigravity/global_skills`
+- Antigravity IDE: `~/.gemini/antigravity-ide/global_skills`
+
+Developer target:
+
+- Agents: `~/.agents/skills`
+
+The installer only refreshes symlinks that already point inside this repo. It refuses to overwrite external symlinks or real directories.
 
 ## Community skills
 
