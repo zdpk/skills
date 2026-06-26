@@ -49,9 +49,14 @@ jobs:
 
           path = Path("dist/install.sh")
           text = path.read_text()
+          replacement = (
+              'SKILLS_VERSION="${'
+              + f'SKILLS_VERSION:-{os.environ["GITHUB_REF_NAME"]}'
+              + '}"'
+          )
           text = text.replace(
               'SKILLS_VERSION="${SKILLS_VERSION:-latest}"',
-              f'SKILLS_VERSION="${{SKILLS_VERSION:-{os.environ["GITHUB_REF_NAME"]}}}"',
+              replacement,
           )
           path.write_text(text)
           PY

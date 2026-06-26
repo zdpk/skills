@@ -13,7 +13,7 @@ curl -fsSL https://github.com/zdpk/skills/releases/latest/download/install.sh | 
 Pin a specific version:
 
 ```bash
-curl -fsSL https://github.com/zdpk/skills/releases/download/v1.2.2/install.sh | bash
+curl -fsSL https://github.com/zdpk/skills/releases/download/v1.2.3/install.sh | bash
 ```
 
 The release installer always installs the prebuilt `sk` binary for the release.
