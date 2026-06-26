@@ -6,6 +6,7 @@ REPO="zdpk/skills"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.skills}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 DOTFILES_DIR="$INSTALL_DIR/dotfiles"
+SKILLS_VERSION="${SKILLS_VERSION:-latest}"
 
 # ── Colors ────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -61,6 +62,64 @@ install_repo() {
     fi
 }
 
+# ── sk binary ─────────────────────────────────────────────────────────
+detect_sk_asset() {
+    local os arch
+    os="$(uname -s)"
+    arch="$(uname -m)"
+
+    case "$os:$arch" in
+        Darwin:arm64|Darwin:aarch64)
+            echo "sk-aarch64-apple-darwin"
+            ;;
+        Linux:x86_64|Linux:amd64)
+            echo "sk-x86_64-unknown-linux-gnu"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+release_download_base() {
+    if [ "$SKILLS_VERSION" = "latest" ]; then
+        echo "https://github.com/$REPO/releases/latest/download"
+    else
+        echo "https://github.com/$REPO/releases/download/$SKILLS_VERSION"
+    fi
+}
+
+install_prebuilt_sk() {
+    local asset url binary tmp
+
+    if ! command -v curl &>/dev/null; then
+        warn "curl not found; cannot download prebuilt sk."
+        return 1
+    fi
+
+    if ! asset="$(detect_sk_asset)"; then
+        warn "No prebuilt sk asset for $(uname -s)/$(uname -m)."
+        return 1
+    fi
+
+    binary="$INSTALL_DIR/target/release/sk"
+    tmp="$binary.tmp"
+    url="$(release_download_base)/$asset"
+
+    info "Downloading prebuilt sk ($asset)..."
+    mkdir -p "$(dirname "$binary")"
+    if curl -fsSL -o "$tmp" "$url"; then
+        mv "$tmp" "$binary"
+        chmod +x "$binary"
+        ok "Installed prebuilt sk -> $binary"
+        return 0
+    fi
+
+    rm -f "$tmp"
+    warn "Failed to download prebuilt sk from $url"
+    return 1
+}
+
 # ── Symlink sc to PATH ───────────────────────────────────────────────
 install_bin() {
     local sc_path="$DOTFILES_DIR/bin/sc"
@@ -80,9 +139,12 @@ install_bin() {
         chmod +x "$sk_path"
         if command -v cargo &>/dev/null; then
             info "Building sk..."
-            (cd "$INSTALL_DIR" && cargo build --release -p sk)
+            if ! (cd "$INSTALL_DIR" && cargo build --release -p sk); then
+                warn "cargo build failed; trying prebuilt sk."
+                install_prebuilt_sk || true
+            fi
         else
-            warn "cargo not found; sk will run only after a release binary or local build exists."
+            install_prebuilt_sk || warn "cargo not found and no prebuilt sk could be installed."
         fi
         ln -sf "$sk_path" "$BIN_DIR/sk"
         ok "Linked sk -> $BIN_DIR/sk"
@@ -126,6 +188,7 @@ print_summary() {
     echo ""
     echo "  Install dir:  $INSTALL_DIR"
     echo "  CLI:          $BIN_DIR/sc"
+    echo "  Root CLI:     $BIN_DIR/sk"
     echo "  Skills:       $total registered"
     echo ""
     echo "  Quick start:"

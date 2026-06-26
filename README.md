@@ -4,6 +4,22 @@ Dotfiles and skills for AI coding tools: Claude Code, Codex, OpenCode, Gemini CL
 
 ## Setup (new machine)
 
+Release installer:
+
+```bash
+curl -fsSL https://github.com/zdpk/skills/releases/latest/download/install.sh | bash
+```
+
+Pin a specific version:
+
+```bash
+curl -fsSL https://github.com/zdpk/skills/releases/download/v1.2.1/install.sh | bash
+```
+
+The release installer uses a prebuilt `sk` binary when `cargo` is not available.
+
+Source checkout:
+
 ```bash
 git clone git@github.com:zdpk/skills.git ~/skills
 cd ~/skills
