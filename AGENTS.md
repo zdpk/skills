@@ -9,13 +9,15 @@
 - 언어 관련 skill은 `skills/lang/` 아래에 둔다.
 - 전역 위치인 `~/.agents/skills`나 `~/.codex/skills`를 직접 수정하지 않는다.
 - root `skills/` 배포는 `scripts/install.sh` 또는 `make global-skills-*`로 한다.
-- 수정 후 `make global-skills-validate`를 실행한다.
+- root `skills/` 관리는 Rust CLI `sk` 또는 `make sk-*`로 확인한다.
+- 수정 후 `make global-skills-validate`와 `make sk-test`를 실행한다.
 
 # Skill Rules
 
 - 각 skill에는 `SKILL.md`가 필수다.
 - `SKILL.md` frontmatter에는 `name`과 `description`만 둔다.
 - 언어 skill은 ISO 639-1 코드로 `<source>-<target>` 또는 `<language>-core` 형식을 쓴다.
+- skill 버전은 `skills/registry.toml`에서 관리한다.
 - skill 폴더 안에는 필요한 리소스만 둔다.
 - 반복 실행이 필요한 로직은 `scripts/`에 둔다.
 - 긴 참고 자료는 `references/`에 둔다.

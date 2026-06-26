@@ -21,6 +21,7 @@ make link         Create dotfile symlinks
 make skills       Sync custom skills to Claude/Codex/OpenCode
 make global-skills-install
                   Symlink root `skills/` into Codex/Claude/Antigravity
+make sk-status    Show root `skills/` install status through the Rust CLI
 make plugins      Install Claude plugins from manifest
 make status       Show current state
 ```
@@ -94,6 +95,33 @@ Developer target:
 - Agents: `~/.agents/skills`
 
 The installer only refreshes symlinks that already point inside this repo. It refuses to overwrite external symlinks or real directories.
+
+## Root skills CLI
+
+`sk` is the Rust CLI for the root `skills/` tree.
+
+```bash
+make sk-build
+make sk-test
+make sk-install
+sk list
+sk status
+sk validate
+sk install --dry-run --all
+sk version
+sk bump ja-core patch
+```
+
+`sk` reads `skills/registry.toml` for skill versions. `SKILL.md` frontmatter stays limited to `name` and `description`.
+
+`sk status` checks the standard global skill targets:
+
+- Codex
+- Claude
+- Antigravity
+- Antigravity IDE
+
+Add `--target agents` when checking the developer `~/.agents/skills` target.
 
 ## Community skills
 

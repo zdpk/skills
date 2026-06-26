@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+binary="$repo_root/target/release/sk"
+
+if [[ -x "$binary" ]]; then
+  exec "$binary" "$@"
+fi
+
+if command -v cargo >/dev/null 2>&1; then
+  exec cargo run -q --manifest-path "$repo_root/Cargo.toml" -p sk -- "$@"
+fi
+
+echo "sk binary is not built and cargo is not available." >&2
+echo "Run from the repo: make sk-build" >&2
+exit 1

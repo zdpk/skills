@@ -64,6 +64,7 @@ install_repo() {
 # ── Symlink sc to PATH ───────────────────────────────────────────────
 install_bin() {
     local sc_path="$DOTFILES_DIR/bin/sc"
+    local sk_path="$DOTFILES_DIR/bin/sk"
 
     if [ ! -f "$sc_path" ]; then
         error "sc not found at $sc_path"
@@ -74,6 +75,18 @@ install_bin() {
     mkdir -p "$BIN_DIR"
     ln -sf "$sc_path" "$BIN_DIR/sc"
     ok "Linked sc -> $BIN_DIR/sc"
+
+    if [ -f "$sk_path" ]; then
+        chmod +x "$sk_path"
+        if command -v cargo &>/dev/null; then
+            info "Building sk..."
+            (cd "$INSTALL_DIR" && cargo build --release -p sk)
+        else
+            warn "cargo not found; sk will run only after a release binary or local build exists."
+        fi
+        ln -sf "$sk_path" "$BIN_DIR/sk"
+        ok "Linked sk -> $BIN_DIR/sk"
+    fi
 
     # Check if BIN_DIR is in PATH
     if ! echo "$PATH" | tr ':' '\n' | grep -qx "$BIN_DIR"; then
@@ -117,6 +130,7 @@ print_summary() {
     echo ""
     echo "  Quick start:"
     echo "    sc list                              # browse skills"
+    echo "    sk status                            # inspect root skills"
     echo "    sc deploy dev --target ~/my-project  # deploy to project"
     echo "    sc diff                              # check status"
     echo "    sc --help                            # all commands"

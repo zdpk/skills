@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_real="$(cd "$repo_root" && pwd -P)"
 skills_dir="$repo_root/skills"
 apply=false
 list_only=false
@@ -54,6 +55,10 @@ add_target() {
   local name="$1"
   local dir="$2"
   targets+=("$name:$dir")
+}
+
+real_path() {
+  python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -137,18 +142,29 @@ refresh_link() {
   local skill_name
   local target_path
   local existing_target
+  local existing_abs
+  local existing_real
+  local source_real
 
   skill_name="$(basename "$source_dir")"
   target_path="$target_root/$skill_name"
+  source_real="$(real_path "$source_dir")"
 
   if [[ -L "$target_path" ]]; then
     existing_target="$(readlink "$target_path")"
-    if [[ "$existing_target" == "$source_dir" ]]; then
+    if [[ "$existing_target" = /* ]]; then
+      existing_abs="$existing_target"
+    else
+      existing_abs="$(cd "$(dirname "$target_path")" && pwd)/$existing_target"
+    fi
+    existing_real="$(real_path "$existing_abs")"
+
+    if [[ "$existing_target" == "$source_dir" || "$existing_real" == "$source_real" ]]; then
       echo "Already linked [$target_name]: $target_path -> $source_dir"
       return 0
     fi
 
-    if [[ "$existing_target" == "$repo_root"/* ]]; then
+    if [[ "$existing_target" == "$repo_root"/* || "$existing_target" == "$repo_real"/* || "$existing_real" == "$repo_real"/* ]]; then
       if [[ "$apply" == true ]]; then
         rm "$target_path"
         ln -s "$source_dir" "$target_path"

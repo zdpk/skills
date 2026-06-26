@@ -1,8 +1,10 @@
 DOTCTL := python3 scripts/dotctl
+SK := cargo run -q -p sk --
 
 .PHONY: setup sync generate link skills plugins status help
 .PHONY: global-skills-validate global-skills-list global-skills-dry-run global-skills-install global-skills-update
 .PHONY: global-skills-install-codex global-skills-install-claude global-skills-install-antigravity global-skills-install-antigravity-ide global-skills-install-agents
+.PHONY: sk-build sk-test sk-install sk-list sk-status sk-validate
 
 setup:       ## Initial setup: create .env then full sync
 	@test -f .env || (cp dotfiles/.env.example .env && echo "Created .env — fill in values then re-run make setup" && exit 1)
@@ -53,6 +55,24 @@ global-skills-install-antigravity-ide: ## Install root skills into Antigravity I
 
 global-skills-install-agents: ## Install root skills into ~/.agents/skills
 	./scripts/install.sh --apply --agents
+
+sk-build: ## Build the Rust root skill manager
+	cargo build -p sk
+
+sk-test: ## Test the Rust root skill manager
+	cargo test -p sk
+
+sk-install: ## Install sk into Cargo bin
+	cargo install --path crates/sk --force
+
+sk-list: ## List root skills with sk
+	$(SK) list
+
+sk-status: ## Show root skill install status with sk
+	$(SK) status
+
+sk-validate: ## Validate root skills with sk
+	$(SK) validate
 
 plugins:     ## Install Claude plugins from manifest
 	$(DOTCTL) plugins

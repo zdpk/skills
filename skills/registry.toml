@@ -1,0 +1,47 @@
+[[skill]]
+name = "data-store"
+category = "core"
+path = "skills/core/data-store"
+version = "0.1.0"
+
+[[skill]]
+name = "ja-core"
+category = "lang"
+path = "skills/lang/ja-core"
+version = "0.1.0"
+
+[[skill]]
+name = "ja-ko"
+category = "lang"
+path = "skills/lang/ja-ko"
+version = "0.1.0"
+
+[[skill]]
+name = "ko-ja"
+category = "lang"
+path = "skills/lang/ko-ja"
+version = "0.1.0"
+
+[[skill]]
+name = "naver-core"
+category = "content"
+path = "skills/content/naver-core"
+version = "0.1.0"
+
+[[skill]]
+name = "naver-premium"
+category = "content"
+path = "skills/content/naver-premium"
+version = "0.1.0"
+
+[[skill]]
+name = "calendar-sync"
+category = "personal"
+path = "skills/personal/calendar-sync"
+version = "0.1.0"
+
+[[skill]]
+name = "todo-capture"
+category = "personal"
+path = "skills/personal/todo-capture"
+version = "0.1.0"
