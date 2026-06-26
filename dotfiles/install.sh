@@ -23,7 +23,7 @@ error() { echo -e "${RED}==>${NC} $*" >&2; }
 # ── Prerequisites ─────────────────────────────────────────────────────
 check_deps() {
     local missing=()
-    for cmd in git python3; do
+    for cmd in git python3 curl; do
         if ! command -v "$cmd" &>/dev/null; then
             missing+=("$cmd")
         fi
@@ -120,7 +120,7 @@ install_prebuilt_sk() {
     return 1
 }
 
-# ── Symlink sc to PATH ───────────────────────────────────────────────
+# ── Symlink CLIs to PATH ─────────────────────────────────────────────
 install_bin() {
     local sc_path="$DOTFILES_DIR/bin/sc"
     local sk_path="$DOTFILES_DIR/bin/sk"
@@ -137,15 +137,7 @@ install_bin() {
 
     if [ -f "$sk_path" ]; then
         chmod +x "$sk_path"
-        if command -v cargo &>/dev/null; then
-            info "Building sk..."
-            if ! (cd "$INSTALL_DIR" && cargo build --release -p sk); then
-                warn "cargo build failed; trying prebuilt sk."
-                install_prebuilt_sk || true
-            fi
-        else
-            install_prebuilt_sk || warn "cargo not found and no prebuilt sk could be installed."
-        fi
+        install_prebuilt_sk || exit 1
         ln -sf "$sk_path" "$BIN_DIR/sk"
         ok "Linked sk -> $BIN_DIR/sk"
     fi

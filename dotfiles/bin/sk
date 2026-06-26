@@ -1,17 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+script="${BASH_SOURCE[0]}"
+while [[ -L "$script" ]]; do
+  script_dir="$(cd -P "$(dirname "$script")" && pwd)"
+  target="$(readlink "$script")"
+  if [[ "$target" = /* ]]; then
+    script="$target"
+  else
+    script="$script_dir/$target"
+  fi
+done
+
+repo_root="$(cd -P "$(dirname "$script")/../.." && pwd)"
 binary="$repo_root/target/release/sk"
 
 if [[ -x "$binary" ]]; then
+  export SKILLS_REPO="${SKILLS_REPO:-$repo_root}"
   exec "$binary" "$@"
 fi
 
-if command -v cargo >/dev/null 2>&1; then
-  exec cargo run -q --manifest-path "$repo_root/Cargo.toml" -p sk -- "$@"
-fi
-
-echo "sk binary is not built and cargo is not available." >&2
-echo "Run from the repo: make sk-build" >&2
+echo "sk binary is not installed at $binary." >&2
+echo "Re-run: curl -fsSL https://github.com/zdpk/skills/releases/latest/download/install.sh | bash" >&2
 exit 1

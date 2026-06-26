@@ -40,12 +40,28 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Package installer
+        run: |
+          cp dotfiles/install.sh dist/install.sh
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path("dist/install.sh")
+          text = path.read_text()
+          text = text.replace(
+              'SKILLS_VERSION="${SKILLS_VERSION:-latest}"',
+              f'SKILLS_VERSION="${{SKILLS_VERSION:-{os.environ["GITHUB_REF_NAME"]}}}"',
+          )
+          path.write_text(text)
+          PY
+
       - name: Create Release with install.sh
         run: |
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes \
-            dotfiles/install.sh \
+            dist/install.sh \
             dist/sk-*
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

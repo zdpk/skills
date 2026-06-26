@@ -13,10 +13,10 @@ curl -fsSL https://github.com/zdpk/skills/releases/latest/download/install.sh | 
 Pin a specific version:
 
 ```bash
-curl -fsSL https://github.com/zdpk/skills/releases/download/v1.2.1/install.sh | bash
+curl -fsSL https://github.com/zdpk/skills/releases/download/v1.2.2/install.sh | bash
 ```
 
-The release installer uses a prebuilt `sk` binary when `cargo` is not available.
+The release installer always installs the prebuilt `sk` binary for the release.
 
 Source checkout:
 
@@ -127,6 +127,8 @@ sk install --dry-run --all
 sk version
 sk bump ja-core patch
 ```
+
+Release installs use the prebuilt binary. Local `make sk-*` targets are for development.
 
 `sk` reads `skills/registry.toml` for skill versions. `SKILL.md` frontmatter stays limited to `name` and `description`.
 
