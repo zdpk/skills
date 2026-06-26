@@ -1,0 +1,4 @@
+interface:
+  display_name: "Calendar Sync"
+  short_description: "Sync local items with calendar adapters"
+  default_prompt: "Use $calendar-sync to plan a calendar sync."

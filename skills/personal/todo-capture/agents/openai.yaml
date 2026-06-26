@@ -1,0 +1,4 @@
+interface:
+  display_name: "Todo Capture"
+  short_description: "Save personal todos into the local ledger"
+  default_prompt: "Use $todo-capture to save this todo."
